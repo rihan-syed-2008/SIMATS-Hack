@@ -10,6 +10,15 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 
+const protect = require("./middleware/authMiddleware");
+
+app.get("/api/protected", protect, (req, res) => {
+  res.json({
+    message: "You accessed protected route",
+    userId: req.user,
+  });
+});
+
 app.get("/", (req, res) => {
   res.send("API Running");
 });
