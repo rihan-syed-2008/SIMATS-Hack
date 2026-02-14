@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+.aurora-bg {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  top: -50%;
+  left: -50%;
+  background:
+    radial-gradient(
+      circle at 30% 40%,
+      rgba(124, 249, 255, 0.35),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 70% 60%,
+      rgba(167, 139, 250, 0.35),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 50% 80%,
+      rgba(34, 211, 238, 0.25),
+      transparent 40%
+    );
+  filter: blur(120px);
+  animation: auroraMove 3s ease-in-out infinite alternate;
+}
+
+@keyframes auroraMove {
+  0% {
+    transform: rotate(0deg) translateX(0px) translateY(0px);
+  }
+  100% {
+    transform: rotate(15deg) translateX(60px) translateY(-40px);
+  }
+}
+
+body {
+  background-color: #0b0f1a;
+  color: white;
+}

@@ -1,0 +1,156 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+
+body {
+  overflow: hidden;
+}
+
+/* MAIN LAYOUT */
+.login-wrapper {
+  display: flex;
+  height: 100vh;
+
+  background: linear-gradient(
+    135deg,
+    #570010 0%,
+    #6a0013 15%,
+    #8b1a28 30%,
+    #b5b29d 50%,
+    #8b1a28 70%,
+    #6a0013 85%,
+    #570010 100%
+  );
+
+  background-size: 400% 400%;
+  animation: gradientMove 12s ease-in-out infinite;
+}
+
+/* Smooth, symmetrical animation */
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* LEFT PANEL */
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px;
+  color: #dad9d2;
+}
+
+.left-panel h1 {
+  font-size: 80px;
+  font-weight: 800;
+  letter-spacing: 5px;
+}
+
+.left-panel p {
+  font-size: 18px;
+  margin-top: 20px;
+  opacity: 0.8;
+}
+
+/* RIGHT PANEL */
+.right-panel {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* LOGIN CARD */
+.login-card {
+  width: 380px;
+  padding: 50px 40px;
+  background: rgba(218, 217, 210, 0.08);
+  backdrop-filter: blur(18px);
+  border-radius: 20px;
+  border: 1px solid rgba(218, 217, 210, 0.2);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+  transform-style: preserve-3d;
+}
+
+.login-card h2 {
+  color: #570010;
+  margin-bottom: 30px;
+  font-size: 28px;
+}
+
+/* FLOATING LABEL INPUT */
+.input-group {
+  position: relative;
+  margin-bottom: 25px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px 10px;
+  border: none;
+  border-bottom: 2px solid rgba(218, 217, 210, 0.5);
+  background: transparent;
+  color: #570010;
+  font-size: 15px;
+  outline: none;
+}
+
+.input-group label {
+  position: absolute;
+  left: 10px;
+  top: 12px;
+  color: rgba(218, 217, 210, 0.6);
+  font-size: 14px;
+  transition: 0.3s ease;
+  pointer-events: none;
+}
+
+/* floating effect */
+.input-group input:focus + label,
+.input-group input:valid + label {
+  top: -10px;
+  font-size: 12px;
+  color: #570010;
+}
+
+/* BUTTON */
+.login-card button {
+  width: 100%;
+  padding: 12px;
+  background: #570010;
+  color: #dad9d2;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s ease;
+  margin-top: 10px;
+}
+
+.login-card button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* FORGOT */
+.forgot {
+  display: block;
+  margin-top: 15px;
+  font-size: 13px;
+  color: rgba(218, 217, 210, 0.7);
+  cursor: pointer;
+  text-align: right;
+}
