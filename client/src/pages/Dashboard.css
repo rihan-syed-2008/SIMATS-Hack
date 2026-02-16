@@ -1,0 +1,167 @@
+.dashboard-wrapper {
+  min-height: 100vh;
+  padding: 40px;
+
+  background: linear-gradient(
+    135deg,
+    #570010 0%,
+    #6a0013 15%,
+    #8b1a28 30%,
+    #b5b29d 50%,
+    #8b1a28 70%,
+    #6a0013 85%,
+    #570010 100%
+  );
+
+  background-size: 400% 400%;
+  animation: gradientMove 12s ease-in-out infinite;
+}
+
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  color: #dad9d2;
+}
+
+.logout-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #570010;
+  color: #dad9d2;
+  border: none;
+  cursor: pointer;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.action-grid {
+  display: flex;
+  gap: 30px;
+}
+
+.action-card {
+  flex: 1;
+  padding: 30px;
+  border-radius: 20px;
+
+  background: #c3516094;
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(218, 217, 210, 0.25);
+
+  color: #dad9d2;
+  transition: 0.3s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.action-card button {
+  margin-top: 20px;
+  padding: 10px 16px;
+  background: #570010;
+  color: #dad9d2;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.glass-card {
+  padding: 30px;
+  border-radius: 20px;
+
+  background: #c3516094;
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(218, 217, 210, 0.25);
+
+  color: #dad9d2;
+}
+
+.analytics-grid {
+  display: flex;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.analytics-grid h3 {
+  font-size: 32px;
+  color: #dade2d;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  width: 400px;
+  padding: 30px;
+  border-radius: 20px;
+
+  background: #c3516094;
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(218, 217, 210, 0.25);
+
+  color: #dad9d2;
+
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.modal-card input {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+}
+
+.modal-card button {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #570010;
+  color: #dad9d2;
+  cursor: pointer;
+}
+
+.close-btn {
+  background: transparent;
+  color: #dad9d2;
+  border: 1px solid rgba(218, 217, 210, 0.3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

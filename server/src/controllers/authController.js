@@ -56,9 +56,54 @@ exports.login = async (req, res) => {
     res.json({
       message: "Login successful",
       token,
+      name: user.name,
+      userId: user._id,
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
+  }
+};
+const { OAuth2Client } = require("google-auth-library");
+
+const axios = require("axios");
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    const googleRes = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    const { email, name, picture } = googleRes.data;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        password: "google_oauth_user",
+      });
+    }
+
+    const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.json({
+      message: "Google login successful",
+      token: jwtToken,
+      name: user.name,
+      userId: user._id,
+    });
+  } catch (error) {
+    res.status(401).json({ message: "Google authentication failed" });
   }
 };
