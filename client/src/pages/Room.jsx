@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
+import { useNavigate } from "react-router-dom";
 import "./Room.css";
 
 const socket = io("http://10.190.195.151:5000");
@@ -16,6 +17,7 @@ const Room = () => {
   const [participants, setParticipants] = useState([]);
   const [isHost, setIsHost] = useState(false);
   const [hostId, setHostId] = useState(null);
+  const navigate = useNavigate();
 
   // Join room when component loads
   useEffect(() => {
@@ -77,6 +79,18 @@ const Room = () => {
     setMessage("");
   };
 
+  const leaveRoom = () => {
+    socket.emit("leave_room", { roomCode: code });
+    navigate("/dashboard", { replace: true });
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault(); // prevent new line
+      sendMessage();
+    }
+  };
+
   return (
     <div className="room-wrapper">
       {/* Top Bar */}
@@ -84,7 +98,9 @@ const Room = () => {
         <h2>Room Code: {code}</h2>
         <div className="room-actions">
           {isHost && <button className="start-btn">Start Session</button>}
-          <button className="leave-btn">Leave</button>
+          <button className="leave-btn" onClick={leaveRoom}>
+            Leave
+          </button>
         </div>
       </div>
 
@@ -102,12 +118,14 @@ const Room = () => {
           </div>
 
           <div className="chat-input">
-            <input
-              type="text"
-              placeholder="Type a message..."
+            <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              rows={2}
             />
+
             <button onClick={sendMessage}>Send</button>
           </div>
         </div>

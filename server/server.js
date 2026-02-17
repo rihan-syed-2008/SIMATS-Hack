@@ -40,11 +40,16 @@ io.on("connection", (socket) => {
       roomUsers[roomCode] = [];
     }
 
+    roomUsers[roomCode] = roomUsers[roomCode].filter(
+      (user) => user.userId !== userId,
+    );
+
     roomUsers[roomCode].push({
       id: socket.id,
       username,
       userId,
     });
+
     io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
 
     console.log(`${username} joined room ${roomCode}`);
@@ -64,6 +69,21 @@ io.on("connection", (socket) => {
     }
 
     console.log("User disconnected:", socket.id);
+  });
+  socket.on("leave_room", ({ roomCode }) => {
+    socket.leave(roomCode);
+    console.log("Before:", roomUsers[roomCode]);
+
+    if (roomUsers[roomCode]) {
+      roomUsers[roomCode] = roomUsers[roomCode].filter(
+        (user) => user.id !== socket.id,
+      );
+      console.log("After:", roomUsers[roomCode]);
+
+      io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+    }
+
+    console.log("User left room:", roomCode);
   });
 });
 

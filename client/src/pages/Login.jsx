@@ -30,7 +30,7 @@ const Login = () => {
         localStorage.setItem("userId", res.data.userId);
 
         console.log("Login response:", res.data);
-        navigate("/dashboard");
+        navigate("/dashboard", { replace: true });
       } catch (err) {
         console.log(err);
         setError("Google login failed");
@@ -60,7 +60,7 @@ const Login = () => {
 
       console.log("Login response:", res.data);
 
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
       console.log(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong");

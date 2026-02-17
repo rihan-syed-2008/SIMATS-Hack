@@ -11,12 +11,21 @@ const Dashboard = () => {
   const API = "http://10.190.195.151:5000/api/rooms";
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("userId");
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="dashboard-wrapper">
       {/* Navbar */}
       <div className="navbar">
         <h1>WE Dashboard</h1>
-        <button className="logout-btn">Logout</button>
+        <button className="logout-btn" onClick={handleLogout}>
+          Logout
+        </button>
       </div>
 
       <div className="dashboard-content">
@@ -57,7 +66,7 @@ const Dashboard = () => {
                     },
                   );
                   console.log("Create clicked");
-                  navigate(`/room/${res.data.code}`);
+                  navigate(`/room/${res.data.code}`, { replace: true });
                 } catch (err) {
                   console.error(err);
                 }
@@ -96,7 +105,7 @@ const Dashboard = () => {
                   },
                 );
 
-                navigate(`/room/${roomCode}`);
+                navigate(`/room/${roomCode}`, { replace: true });
               }}
             >
               Join
