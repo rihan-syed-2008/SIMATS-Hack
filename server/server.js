@@ -19,6 +19,7 @@ app.use(
 
 // Create HTTP server from Express app
 const server = http.createServer(app);
+const roomTimers = {};
 
 // Attach Socket.io to that server
 const io = new Server(server, {
@@ -32,6 +33,71 @@ const roomUsers = {};
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
+
+  socket.on("draw", ({ roomCode, x, y, prevX, prevY, color, lineWidth }) => {
+    socket.to(roomCode).emit("draw", {
+      x,
+      y,
+      prevX,
+      prevY,
+      color,
+      lineWidth,
+    });
+  });
+
+  socket.on("clear_board", ({ roomCode }) => {
+    io.to(roomCode).emit("clear_board");
+  });
+
+  socket.on("start_timer", ({ roomCode, duration }) => {
+    console.log("Timer started for room:", roomCode);
+    const endTime = Date.now() + duration;
+
+    roomTimers[roomCode] = {
+      endTime,
+      duration,
+      remainingTime: duration,
+      isRunning: true,
+      isPaused: false,
+    };
+
+    io.to(roomCode).emit("timer_update", roomTimers[roomCode]);
+  });
+
+  socket.on("pause_timer", ({ roomCode }) => {
+    const timer = roomTimers[roomCode];
+    if (!timer || timer.isPaused) return;
+
+    const remaining = timer.endTime - Date.now();
+
+    timer.remainingTime = remaining;
+    timer.isPaused = true;
+    timer.isRunning = false;
+
+    io.to(roomCode).emit("timer_update", timer);
+  });
+
+  socket.on("resume_timer", ({ roomCode }) => {
+    const timer = roomTimers[roomCode];
+    if (!timer || !timer.isPaused) return;
+
+    timer.endTime = Date.now() + timer.remainingTime;
+    timer.isPaused = false;
+    timer.isRunning = true;
+
+    io.to(roomCode).emit("timer_update", timer);
+  });
+
+  socket.on("reset_timer", ({ roomCode }) => {
+    const timer = roomTimers[roomCode];
+    if (!timer) return;
+
+    timer.isRunning = false;
+    timer.isPaused = false;
+    timer.remainingTime = timer.duration;
+
+    io.to(roomCode).emit("timer_update", timer);
+  });
 
   socket.on("join_room", ({ roomCode, username, userId }) => {
     socket.join(roomCode);
@@ -51,6 +117,10 @@ io.on("connection", (socket) => {
     });
 
     io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+
+    if (roomTimers[roomCode]) {
+      socket.emit("timer_started", roomTimers[roomCode]);
+    }
 
     console.log(`${username} joined room ${roomCode}`);
   });

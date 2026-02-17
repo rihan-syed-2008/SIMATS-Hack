@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
 import "./Room.css";
+import Whiteboard from "../components/Whiteboard";
 
 const socket = io("http://10.190.195.151:5000");
 
@@ -17,6 +19,11 @@ const Room = () => {
   const [participants, setParticipants] = useState([]);
   const [isHost, setIsHost] = useState(false);
   const [hostId, setHostId] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(1500); // 25 mins default
+  const [isRunning, setIsRunning] = useState(false);
+  const [customMinutes, setCustomMinutes] = useState(25);
+  const timerRef = useRef(null);
+
   const navigate = useNavigate();
 
   // Join room when component loads
@@ -29,6 +36,35 @@ const Room = () => {
       userId: localStorage.getItem("userId"),
     });
 
+    socket.on("timer_update", (data) => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+
+      // If running → use endTime
+      if (data.isRunning) {
+        setIsRunning(true);
+
+        timerRef.current = setInterval(() => {
+          const remaining = Math.max(
+            0,
+            Math.floor((data.endTime - Date.now()) / 1000),
+          );
+
+          setTimeLeft(remaining);
+
+          if (remaining <= 0) {
+            clearInterval(timerRef.current);
+            setIsRunning(false);
+          }
+        }, 1000);
+      } else {
+        // For paused OR reset
+        setIsRunning(false);
+        setTimeLeft(Math.floor(data.remainingTime / 1000));
+      }
+    });
+
     socket.on("receive_message", (data) => {
       setMessages((prev) => [...prev, data]);
     });
@@ -38,8 +74,11 @@ const Room = () => {
     });
 
     return () => {
+      socket.off("timer_started");
       socket.off("receive_message");
       socket.off("update_participants");
+
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [code]);
 
@@ -97,7 +136,32 @@ const Room = () => {
       <div className="room-navbar">
         <h2>Room Code: {code}</h2>
         <div className="room-actions">
-          {isHost && <button className="start-btn">Start Session</button>}
+          {isHost && (
+            <>
+              <input
+                type="number"
+                min="1"
+                placeholder="Minutes"
+                value={customMinutes}
+                onChange={(e) => setCustomMinutes(e.target.value)}
+                style={{ width: "100px", marginRight: "10px" }}
+              />
+
+              <button
+                className="start-btn"
+                disabled={!customMinutes || customMinutes <= 0}
+                onClick={() =>
+                  socket.emit("start_timer", {
+                    roomCode: code,
+                    duration: customMinutes * 60 * 1000,
+                  })
+                }
+              >
+                {isRunning ? "Session Running..." : "Start Session"}
+              </button>
+            </>
+          )}
+
           <button className="leave-btn" onClick={leaveRoom}>
             Leave
           </button>
@@ -146,10 +210,41 @@ const Room = () => {
 
           <div className="timer-card">
             <h3>Pomodoro</h3>
-            <h1>25:00</h1>
+
+            <h1>
+              {Math.floor(timeLeft / 60)
+                .toString()
+                .padStart(2, "0")}
+              :{(timeLeft % 60).toString().padStart(2, "0")}
+            </h1>
+
+            {isHost && (
+              <>
+                <button
+                  onClick={() => socket.emit("pause_timer", { roomCode: code })}
+                >
+                  Pause
+                </button>
+
+                <button
+                  onClick={() =>
+                    socket.emit("resume_timer", { roomCode: code })
+                  }
+                >
+                  Resume
+                </button>
+
+                <button
+                  onClick={() => socket.emit("reset_timer", { roomCode: code })}
+                >
+                  Reset
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
+      <Whiteboard socket={socket} roomCode={code} isHost={isHost} />
     </div>
   );
 };
