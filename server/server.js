@@ -20,6 +20,8 @@ app.use(
 // Create HTTP server from Express app
 const server = http.createServer(app);
 const roomTimers = {};
+const roomBoards = {};
+const roomPermissions = {};
 
 // Attach Socket.io to that server
 const io = new Server(server, {
@@ -34,18 +36,75 @@ const roomUsers = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  socket.on("grant_permission", ({ roomCode, userId }) => {
+    if (!roomPermissions[roomCode]) {
+      roomPermissions[roomCode] = [];
+    }
+    if (!roomPermissions[roomCode].includes(userId)) {
+      roomPermissions[roomCode].push(userId);
+    }
+
+    io.to(roomCode).emit("update_permissions", roomPermissions[roomCode]);
+  });
+
+  socket.on("revoke_permission", ({ roomCode, userId }) => {
+    roomPermissions[roomCode] = roomPermissions[roomCode].filter(
+      (id) => id !== userId,
+    );
+
+    io.to(roomCode).emit("update_permissions", roomPermissions[roomCode]);
+  });
+
   socket.on("draw", ({ roomCode, x, y, prevX, prevY, color, lineWidth }) => {
-    socket.to(roomCode).emit("draw", {
-      x,
-      y,
-      prevX,
-      prevY,
-      color,
-      lineWidth,
+    if (!roomBoards[roomCode]) {
+      roomBoards[roomCode] = [];
+    }
+
+    const stroke = { x, y, prevX, prevY, color, lineWidth };
+
+    roomBoards[roomCode].push(stroke);
+
+    socket.to(roomCode).emit("draw", stroke);
+  });
+
+  socket.on("join_room", ({ roomCode, username, userId }) => {
+    socket.join(roomCode);
+
+    if (!roomPermissions[roomCode]) {
+      roomPermissions[roomCode] = [];
+    }
+
+    if (!roomUsers[roomCode]) {
+      roomUsers[roomCode] = [];
+    }
+
+    if (roomBoards[roomCode]) {
+      socket.emit("board_history", roomBoards[roomCode]);
+    }
+
+    socket.emit("update_permissions", roomPermissions[roomCode] || []);
+
+    roomUsers[roomCode] = roomUsers[roomCode].filter(
+      (user) => user.userId !== userId,
+    );
+
+    roomUsers[roomCode].push({
+      id: socket.id,
+      username,
+      userId,
     });
+
+    io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+
+    if (roomTimers[roomCode]) {
+      socket.emit("timer_started", roomTimers[roomCode]);
+    }
+
+    console.log(`${username} joined room ${roomCode}`);
   });
 
   socket.on("clear_board", ({ roomCode }) => {
+    roomBoards[roomCode] = [];
     io.to(roomCode).emit("clear_board");
   });
 
@@ -101,9 +160,14 @@ io.on("connection", (socket) => {
 
   socket.on("join_room", ({ roomCode, username, userId }) => {
     socket.join(roomCode);
+    console.log("Sending history:", roomBoards[roomCode]);
 
     if (!roomUsers[roomCode]) {
       roomUsers[roomCode] = [];
+    }
+
+    if (roomBoards[roomCode]) {
+      socket.emit("board_history", roomBoards[roomCode]);
     }
 
     roomUsers[roomCode] = roomUsers[roomCode].filter(
@@ -160,6 +224,6 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 5000;
 
 // IMPORTANT: use server.listen, NOT app.listen
-server.listen(PORT, () => {
+server.listen(5000, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });

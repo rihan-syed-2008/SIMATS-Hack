@@ -6,7 +6,7 @@ import { useRef } from "react";
 import "./Room.css";
 import Whiteboard from "../components/Whiteboard";
 
-const socket = io("http://10.190.195.151:5000");
+const socket = io(import.meta.env.VITE_API_URL);
 
 // ⚠️ Keep outside component so it doesn't reconnect every render
 
@@ -22,6 +22,7 @@ const Room = () => {
   const [timeLeft, setTimeLeft] = useState(1500); // 25 mins default
   const [isRunning, setIsRunning] = useState(false);
   const [customMinutes, setCustomMinutes] = useState(25);
+  const [allowedUsers, setAllowedUsers] = useState([]);
   const timerRef = useRef(null);
 
   const navigate = useNavigate();
@@ -29,6 +30,10 @@ const Room = () => {
   // Join room when component loads
   useEffect(() => {
     const username = localStorage.getItem("username");
+
+    socket.on("update_permissions", (list) => {
+      setAllowedUsers(list);
+    });
 
     socket.emit("join_room", {
       roomCode: code,
@@ -77,7 +82,7 @@ const Room = () => {
       socket.off("timer_started");
       socket.off("receive_message");
       socket.off("update_participants");
-
+      socket.off("update_permissions");
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [code]);
@@ -87,11 +92,14 @@ const Room = () => {
       const token = localStorage.getItem("token");
       const userId = localStorage.getItem("userId");
 
-      const res = await fetch(`http://10.190.195.151:5000/api/rooms/${code}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/rooms/${code}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       const data = await res.json();
 
@@ -200,9 +208,31 @@ const Room = () => {
             <h3>Participants</h3>
             <ul>
               {participants.map((user, index) => (
-                <li key={index}>
+                <li key={index} style={{ marginBottom: "8px" }}>
                   {user.username}
                   {String(user.userId) === String(hostId) && " (Host)"}
+
+                  {/* 🔥 Only show buttons if current user is host AND this is not host */}
+                  {isHost && String(user.userId) !== String(hostId) && (
+                    <button
+                      style={{ marginLeft: "10px" }}
+                      onClick={() => {
+                        if (allowedUsers.includes(user.userId)) {
+                          socket.emit("revoke_permission", {
+                            roomCode: code,
+                            userId: user.userId,
+                          });
+                        } else {
+                          socket.emit("grant_permission", {
+                            roomCode: code,
+                            userId: user.userId,
+                          });
+                        }
+                      }}
+                    >
+                      {allowedUsers.includes(user.userId) ? "Revoke" : "Allow"}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -244,7 +274,13 @@ const Room = () => {
           </div>
         </div>
       </div>
-      <Whiteboard socket={socket} roomCode={code} isHost={isHost} />
+      <Whiteboard
+        socket={socket}
+        roomCode={code}
+        isHost={isHost}
+        allowedUsers={allowedUsers}
+        userId={localStorage.getItem("userId")}
+      />
     </div>
   );
 };

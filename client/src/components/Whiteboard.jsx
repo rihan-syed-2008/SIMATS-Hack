@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
-const Whiteboard = ({ socket, roomCode, isHost }) => {
+const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
+  const [isErasing, setIsErasing] = useState(false);
+  const canDraw = isHost || allowedUsers.includes(userId);
+
   const drawLine = (x1, y1, x2, y2, strokeColor, strokeWidth) => {
     const ctx = canvasRef.current.getContext("2d");
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = strokeWidth;
+    ctx.lineCap = "round";
 
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -18,6 +22,7 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
   const [lineWidth, setLineWidth] = useState(2);
 
   useEffect(() => {
+    if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
@@ -25,8 +30,21 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
 
-    socket.on("draw", ({ x, y, prevX, prevY }) => {
-      drawLine(prevX, prevY, x, y);
+    socket.on("board_history", (strokes) => {
+      strokes.forEach((stroke) => {
+        drawLine(
+          stroke.prevX,
+          stroke.prevY,
+          stroke.x,
+          stroke.y,
+          stroke.color,
+          stroke.lineWidth,
+        );
+      });
+    });
+
+    socket.on("draw", ({ x, y, prevX, prevY, color, lineWidth }) => {
+      drawLine(prevX, prevY, x, y, color, lineWidth);
     });
     socket.on("clear_board", () => {
       const canvas = canvasRef.current;
@@ -37,11 +55,12 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
     return () => {
       socket.off("draw");
       socket.off("clear_board");
+      socket.off("board_history");
     };
   }, [socket]);
 
   const handleMouseDown = (e) => {
-    if (!isHost) return;
+    if (!canDraw) return;
 
     setIsDrawing(true);
 
@@ -53,13 +72,16 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing || !isHost) return;
+    if (!isDrawing || !canDraw) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    drawLine(prevPos.x, prevPos.y, x, y);
+    const currentColor = isErasing ? "#ffffff" : color;
+    const currentWidth = isErasing ? 20 : lineWidth;
+
+    drawLine(prevPos.x, prevPos.y, x, y, currentColor, currentWidth);
 
     socket.emit("draw", {
       roomCode,
@@ -67,8 +89,8 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
       y,
       prevX: prevPos.x,
       prevY: prevPos.y,
-      color,
-      lineWidth,
+      color: currentColor,
+      lineWidth: currentWidth,
     });
 
     setPrevPos({ x, y });
@@ -89,6 +111,12 @@ const Whiteboard = ({ socket, roomCode, isHost }) => {
           Clear Board
         </button>
       )}
+      <button
+        onClick={() => setIsErasing(!isErasing)}
+        style={{ marginLeft: "10px" }}
+      >
+        {isErasing ? "Stop Eraser" : "Eraser"}
+      </button>
       <div style={{ marginBottom: "10px" }}>
         <input
           type="color"

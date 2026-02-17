@@ -8,7 +8,7 @@ const Dashboard = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [roomCode, setRoomCode] = useState("");
-  const API = "http://10.190.195.151:5000/api/rooms";
+  const API = `${import.meta.env.VITE_API_URL}/api/rooms`;
   const navigate = useNavigate();
 
   const handleLogout = () => {

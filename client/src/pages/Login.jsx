@@ -14,7 +14,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const API = "http://10.190.195.151:5000/api/auth";
+  const API = `${import.meta.env.VITE_API_URL}/api/auth`;
   const navigate = useNavigate();
 
   const googleLogin = useGoogleLogin({
