@@ -8,9 +8,11 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const [smartMode, setSmartMode] = useState(false);
   const permanentStrokes = useRef([]);
   const previewRef = useRef(null);
-  //const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [isProcessingAI, setIsProcessingAI] = useState(false);
   const strokePoints = useRef([]);
   const canDraw = isHost || allowedUsers.includes(userId);
+
+  const [aiUsed, setAiUsed] = useState(false);
 
   const drawLine = (x1, y1, x2, y2, strokeColor, strokeWidth) => {
     const ctx = canvasRef.current.getContext("2d");
@@ -110,8 +112,12 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     }
   };
 
-  /*const correctShapeWithAI = async (points) => {
+  const correctShapeWithAI = async (points) => {
     try {
+      console.log(import.meta.env.VITE_GEMINI_URL);
+      console.log(import.meta.env.VITE_GEMINI_KEY);
+
+      console.log("correctShapeWithAI triggered");
       console.log("AI called");
       const response = await fetch(
         `${import.meta.env.VITE_GEMINI_URL}?key=${import.meta.env.VITE_GEMINI_KEY}`,
@@ -145,7 +151,7 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     } catch (err) {
       console.error("AI error:", err);
     }
-  };*/
+  };
 
   const handleMouseDown = (e) => {
     strokePoints.current = [];
@@ -203,19 +209,24 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   };
 
   const handleMouseUp = async () => {
-    /*setIsDrawing(false);
+    setIsDrawing(false);
+
+    console.log("smartMode:", smartMode);
+    console.log("points:", strokePoints.current.length);
+    console.log("aiUsed:", aiUsed);
 
     if (!smartMode || isProcessingAI) {
       strokePoints.current = [];
       return;
     }
+    setAiUsed(true);
 
     setIsProcessingAI(true);
     await correctShapeWithAI(strokePoints.current);
     setIsProcessingAI(false);
 
-    strokePoints.current = [];*/
-    setIsDrawing(false);
+    strokePoints.current = [];
+    /*setIsDrawing(false);
 
     if (!smartMode || strokePoints.current.length < 10) {
       strokePoints.current = [];
@@ -229,7 +240,7 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
 
     // 3️⃣ Draw clean corrected shape
     redrawPerfectShape(fakeResult, strokePoints.current);
-    strokePoints.current = [];
+    strokePoints.current = [];*/
   };
 
   return (

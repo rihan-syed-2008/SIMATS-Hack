@@ -32,9 +32,33 @@ const io = new Server(server, {
 
 // Socket logic
 const roomUsers = {};
+const roomHosts = {};
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  socket.on("transfer_host", ({ roomCode, newHostId }) => {
+    if (!roomHosts[roomCode]) return;
+
+    // Only current host can transfer
+    if (roomHosts[roomCode] !== socket.userId) return;
+
+    roomHosts[roomCode] = newHostId;
+
+    io.to(roomCode).emit("host_changed", {
+      newHostId,
+    });
+
+    io.to(roomCode).emit("system_message", {
+      message: `Host transferred`,
+    });
+  });
+
+  socket.on("typing", ({ roomCode, username }) => {
+    socket.to(roomCode).emit("user_typing", username);
+  });
+
+  socket.on("stop_typing", ({ roomCode }) => {
+    socket.to(roomCode).emit("user_stop_typing");
+  });
 
   socket.on("remove_last_stroke", ({ roomCode }) => {
     if (roomBoards[roomCode] && roomBoards[roomCode].length > 0) {
@@ -77,6 +101,15 @@ io.on("connection", (socket) => {
 
   socket.on("join_room", ({ roomCode, username, userId }) => {
     socket.join(roomCode);
+    socket.username = username;
+    socket.userId = userId;
+    socket.to(roomCode).emit("system_message", {
+      message: `${username} joined the room`,
+    });
+
+    if (!roomHosts[roomCode]) {
+      roomHosts[roomCode] = userId; // first user becomes host
+    }
 
     if (!roomPermissions[roomCode]) {
       roomPermissions[roomCode] = [];
@@ -166,63 +199,69 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("timer_update", timer);
   });
 
-  socket.on("join_room", ({ roomCode, username, userId }) => {
-    socket.join(roomCode);
-    console.log("Sending history:", roomBoards[roomCode]);
-
-    if (!roomUsers[roomCode]) {
-      roomUsers[roomCode] = [];
-    }
-
-    if (roomBoards[roomCode]) {
-      socket.emit("board_history", roomBoards[roomCode]);
-    }
-
-    roomUsers[roomCode] = roomUsers[roomCode].filter(
-      (user) => user.userId !== userId,
-    );
-
-    roomUsers[roomCode].push({
-      id: socket.id,
-      username,
-      userId,
-    });
-
-    io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
-
-    if (roomTimers[roomCode]) {
-      socket.emit("timer_started", roomTimers[roomCode]);
-    }
-
-    console.log(`${username} joined room ${roomCode}`);
-  });
-
   socket.on("send_message", (data) => {
     io.to(data.room).emit("receive_message", data);
   });
 
   socket.on("disconnect", () => {
     for (const roomCode in roomUsers) {
-      roomUsers[roomCode] = roomUsers[roomCode].filter(
-        (user) => user.id !== socket.id,
-      );
+      const user = roomUsers[roomCode]?.find((u) => u.id === socket.id);
 
-      io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+      if (user) {
+        // Remove user
+        roomUsers[roomCode] = roomUsers[roomCode].filter(
+          (u) => u.id !== socket.id,
+        );
+
+        io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+
+        io.to(roomCode).emit("system_message", {
+          message: `${user.username} left the room`,
+        });
+
+        // Transfer host if needed
+        if (roomUsers[roomCode].length > 0) {
+          const newHost = roomUsers[roomCode][0];
+
+          io.to(roomCode).emit("host_changed", {
+            newHostId: newHost.userId,
+          });
+        } else {
+          delete roomUsers[roomCode];
+        }
+      }
     }
-
-    console.log("User disconnected:", socket.id);
   });
   socket.on("leave_room", ({ roomCode }) => {
     socket.leave(roomCode);
-    console.log("Before:", roomUsers[roomCode]);
 
-    if (roomUsers[roomCode]) {
-      roomUsers[roomCode] = roomUsers[roomCode].filter(
-        (user) => user.id !== socket.id,
-      );
-      console.log("After:", roomUsers[roomCode]);
+    if (!roomUsers[roomCode]) return;
 
-      io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+    // 1️⃣ Remove the leaving user FIRST
+    roomUsers[roomCode] = roomUsers[roomCode].filter(
+      (user) => user.id !== socket.id,
+    );
+
+    // 2️⃣ Update participants
+    io.to(roomCode).emit("update_participants", roomUsers[roomCode]);
+
+    // 3️⃣ Send system message
+    io.to(roomCode).emit("system_message", {
+      message: `${socket.username} left the room`,
+    });
+
+    // 4️⃣ If users remain → assign new host
+    if (roomUsers[roomCode].length > 0) {
+      const newHost = roomUsers[roomCode][0];
+
+      roomHosts[roomCode] = newHost.userId;
+
+      io.to(roomCode).emit("host_changed", {
+        newHostId: newHost.userId,
+      });
+    } else {
+      // Room empty
+      delete roomUsers[roomCode];
     }
 
     console.log("User left room:", roomCode);

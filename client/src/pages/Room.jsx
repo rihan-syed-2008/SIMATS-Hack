@@ -23,6 +23,7 @@ const Room = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [customMinutes, setCustomMinutes] = useState(25);
   const [allowedUsers, setAllowedUsers] = useState([]);
+  const [typingUser, setTypingUser] = useState(null);
   const timerRef = useRef(null);
 
   const navigate = useNavigate();
@@ -30,6 +31,31 @@ const Room = () => {
   // Join room when component loads
   useEffect(() => {
     const username = localStorage.getItem("username");
+
+    socket.on("host_changed", ({ newHostId }) => {
+      setHostId(newHostId);
+
+      if (String(newHostId) === String(localStorage.getItem("userId"))) {
+        setIsHost(true);
+      } else {
+        setIsHost(false);
+      }
+    });
+
+    socket.on("system_message", (data) => {
+      setMessages((prev) => [
+        ...prev,
+        { author: "System", message: data.message, system: true },
+      ]);
+    });
+
+    socket.on("user_typing", (username) => {
+      setTypingUser(username);
+    });
+
+    socket.on("user_stop_typing", () => {
+      setTypingUser(null);
+    });
 
     socket.on("update_permissions", (list) => {
       setAllowedUsers(list);
@@ -83,6 +109,11 @@ const Room = () => {
       socket.off("receive_message");
       socket.off("update_participants");
       socket.off("update_permissions");
+      socket.off("user_typing");
+      socket.off("user_stop_typing");
+      socket.off("system_message");
+      socket.off("host_changed");
+
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [code]);
@@ -112,6 +143,16 @@ const Room = () => {
 
     fetchRoom();
   }, [code]);
+
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
+
+    socket.emit("typing", { roomCode: code, username });
+
+    setTimeout(() => {
+      socket.emit("stop_typing", { roomCode: code });
+    }, 1500);
+  };
 
   const sendMessage = () => {
     if (message.trim() === "") return;
@@ -173,6 +214,14 @@ const Room = () => {
           <button className="leave-btn" onClick={leaveRoom}>
             Leave
           </button>
+          {isHost && (
+            <button
+              style={{ marginLeft: "10px", background: "red", color: "white" }}
+              onClick={() => socket.emit("end_room", { roomCode: code })}
+            >
+              End Meeting
+            </button>
+          )}
         </div>
       </div>
 
@@ -183,16 +232,36 @@ const Room = () => {
 
           <div className="chat-messages">
             {messages.map((msg, index) => (
-              <p key={index}>
-                <strong>{msg.author}:</strong> {msg.message}
+              <p
+                key={index}
+                style={{
+                  textAlign: msg.system ? "center" : "left",
+                  color: msg.system ? "gray" : "black",
+                  fontStyle: msg.system ? "italic" : "normal",
+                }}
+              >
+                {!msg.system && <strong>{msg.author}: </strong>}
+                {msg.message}
               </p>
             ))}
           </div>
 
+          {typingUser && typingUser !== username && (
+            <div
+              style={{
+                fontStyle: "italic",
+                fontSize: "14px",
+                marginTop: "5px",
+              }}
+            >
+              {typingUser} is typing...
+            </div>
+          )}
+
           <div className="chat-input">
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={handleTyping}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={2}
@@ -231,6 +300,19 @@ const Room = () => {
                       }}
                     >
                       {allowedUsers.includes(user.userId) ? "Revoke" : "Allow"}
+                    </button>
+                  )}
+                  {isHost && String(user.userId) !== String(hostId) && (
+                    <button
+                      style={{ marginLeft: "10px" }}
+                      onClick={() =>
+                        socket.emit("transfer_host", {
+                          roomCode: code,
+                          newHostId: user.userId,
+                        })
+                      }
+                    >
+                      Make Host
                     </button>
                   )}
                 </li>
