@@ -36,6 +36,14 @@ const roomUsers = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  socket.on("remove_last_stroke", ({ roomCode }) => {
+    if (roomBoards[roomCode] && roomBoards[roomCode].length > 0) {
+      roomBoards[roomCode].pop();
+    }
+
+    io.to(roomCode).emit("board_history", roomBoards[roomCode]);
+  });
+
   socket.on("grant_permission", ({ roomCode, userId }) => {
     if (!roomPermissions[roomCode]) {
       roomPermissions[roomCode] = [];
