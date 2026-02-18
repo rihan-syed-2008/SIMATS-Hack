@@ -7,6 +7,8 @@ require("dotenv").config();
 const app = require("./src/app");
 const connectDB = require("./src/config/db");
 
+const Room = require("./src/models/Room");
+
 // Connect DB
 connectDB();
 
@@ -35,6 +37,24 @@ const roomUsers = {};
 const roomHosts = {};
 
 io.on("connection", (socket) => {
+  socket.on("end_room", async ({ roomCode }) => {
+    if (roomHosts[roomCode] !== socket.userId) return;
+
+    io.to(roomCode).emit("room_ended");
+
+    // Clean memory
+    delete roomUsers[roomCode];
+    delete roomBoards[roomCode];
+    delete roomTimers[roomCode];
+    delete roomHosts[roomCode];
+    delete roomPermissions[roomCode];
+
+    // Delete from MongoDB
+    await Room.deleteOne({ code: roomCode });
+
+    console.log("Room deleted:", roomCode);
+  });
+
   socket.on("transfer_host", ({ roomCode, newHostId }) => {
     if (!roomHosts[roomCode]) return;
 
@@ -203,7 +223,7 @@ io.on("connection", (socket) => {
     io.to(data.room).emit("receive_message", data);
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     for (const roomCode in roomUsers) {
       const user = roomUsers[roomCode]?.find((u) => u.id === socket.id);
 
@@ -222,12 +242,22 @@ io.on("connection", (socket) => {
         // Transfer host if needed
         if (roomUsers[roomCode].length > 0) {
           const newHost = roomUsers[roomCode][0];
+          roomHosts[roomCode] = newHost.userId;
 
           io.to(roomCode).emit("host_changed", {
             newHostId: newHost.userId,
           });
         } else {
           delete roomUsers[roomCode];
+          delete roomBoards[roomCode];
+          delete roomTimers[roomCode];
+          delete roomHosts[roomCode];
+          delete roomPermissions[roomCode];
+
+          // 🔥 Delete from MongoDB
+          await Room.deleteOne({ code: roomCode });
+
+          console.log("Room deleted (empty):", roomCode);
         }
       }
     }

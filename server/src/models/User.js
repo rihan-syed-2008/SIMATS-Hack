@@ -15,6 +15,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    publicId: {
+      type: String,
+      unique: true,
+    },
   },
   { timestamps: true },
 );

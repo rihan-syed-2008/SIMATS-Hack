@@ -24,6 +24,7 @@ const Room = () => {
   const [customMinutes, setCustomMinutes] = useState(25);
   const [allowedUsers, setAllowedUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
+  const [notification, setNotification] = useState(null);
   const timerRef = useRef(null);
 
   const navigate = useNavigate();
@@ -31,6 +32,15 @@ const Room = () => {
   // Join room when component loads
   useEffect(() => {
     const username = localStorage.getItem("username");
+
+    socket.on("room_ended", () => {
+      setNotification("Meeting ended by host");
+
+      setTimeout(() => {
+        setNotification(null);
+        navigate("/dashboard");
+      }, 2500); // 2.5 sec
+    });
 
     socket.on("host_changed", ({ newHostId }) => {
       setHostId(newHostId);
@@ -113,10 +123,11 @@ const Room = () => {
       socket.off("user_stop_typing");
       socket.off("system_message");
       socket.off("host_changed");
+      socket.off("room_ended");
 
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [code]);
+  }, [code, navigate]);
 
   useEffect(() => {
     const fetchRoom = async () => {
@@ -354,6 +365,9 @@ const Room = () => {
               </>
             )}
           </div>
+          {notification && (
+            <div className="toast-notification">{notification}</div>
+          )}
         </div>
       </div>
       <Whiteboard
