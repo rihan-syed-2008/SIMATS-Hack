@@ -21,6 +21,7 @@ connectDB();
 app.use(
   cors({
     origin: "*",
+    credentials: true,
   }),
 );
 
@@ -306,6 +307,6 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 5000;
 
 // IMPORTANT: use server.listen, NOT app.listen
-server.listen(5000, "0.0.0.0", () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });

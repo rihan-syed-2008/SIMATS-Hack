@@ -2,6 +2,24 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+const generatePublicId = async (username) => {
+  const User = require("../models/User"); // adjust path if needed
+
+  let base = username.toLowerCase().replace(/\s+/g, "");
+  let publicId;
+  let exists = true;
+
+  while (exists) {
+    const random = Math.floor(1000 + Math.random() * 9000);
+    publicId = `${base}_${random}`;
+
+    const user = await User.findOne({ publicId });
+    if (!user) exists = false;
+  }
+
+  return publicId;
+};
+
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -28,6 +46,9 @@ exports.register = async (req, res) => {
     res.status(201).json({
       message: "User registered successfully",
       token,
+      name: user.name,
+      userId: user._id,
+      publicId: user.publicId,
     });
   } catch (error) {
     console.error(error);
@@ -87,14 +108,15 @@ exports.googleLogin = async (req, res) => {
     const { email, name, picture } = googleRes.data;
 
     let user = await User.findOne({ email });
-    const publicId = await generatePublicId(name);
 
     if (!user) {
+      const publicId = await generatePublicId(name);
+
       user = await User.create({
         name,
         email,
         password: "google_oauth_user",
-        publicId: user.publicId,
+        publicId,
       });
     }
 
@@ -107,8 +129,11 @@ exports.googleLogin = async (req, res) => {
       token: jwtToken,
       name: user.name,
       userId: user._id,
+      publicId: user.publicId,
     });
   } catch (error) {
+    console.log("Google Login Error:", error.message);
+    console.log(error.response?.data);
     res.status(401).json({ message: "Google authentication failed" });
   }
 };
