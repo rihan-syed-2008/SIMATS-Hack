@@ -11,6 +11,11 @@ const Dashboard = () => {
   const [friends, setFriends] = useState([]);
   const [friendIdInput, setFriendIdInput] = useState("");
   const [friendError, setFriendError] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [title, setTitle] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [duration, setDuration] = useState(30);
 
   const publicId = localStorage.getItem("publicId");
 
@@ -22,6 +27,31 @@ const Dashboard = () => {
     localStorage.removeItem("username");
     localStorage.removeItem("userId");
     navigate("/", { replace: true });
+  };
+
+  const handleSchedule = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/rooms/schedule`,
+        {
+          title,
+          scheduledFor,
+          duration,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setSessions((prev) => [...prev, res.data]);
+
+      setShowSchedule(false);
+      setTitle("");
+      setScheduledFor("");
+      setDuration(30);
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   useEffect(() => {
@@ -207,6 +237,62 @@ const Dashboard = () => {
           ))}
         </ul>
       </div>
+      <div className="upcoming-section">
+        <div className="upcoming-header">
+          <h3>Upcoming Sessions</h3>
+          <button onClick={() => setShowSchedule(true)}>
+            + Schedule Meeting
+          </button>
+        </div>
+
+        <div className="sessions-grid">
+          {sessions.length === 0 ? (
+            <p>No upcoming sessions</p>
+          ) : (
+            sessions.map((session) => (
+              <div key={session._id} className="session-card">
+                <h4>{session.title}</h4>
+                <p>
+                  Starts at: {new Date(session.scheduledFor).toLocaleString()}
+                </p>
+                <p>Duration: {session.duration} mins</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      {showSchedule && (
+        <div className="schedule-modal">
+          <div className="schedule-card">
+            <h3>Schedule Meeting</h3>
+
+            <input
+              type="text"
+              placeholder="Session Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+            />
+
+            <input
+              type="number"
+              placeholder="Duration (minutes)"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            />
+
+            <div className="modal-actions">
+              <button onClick={handleSchedule}>Schedule</button>
+              <button onClick={() => setShowSchedule(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

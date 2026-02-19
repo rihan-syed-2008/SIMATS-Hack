@@ -7,6 +7,10 @@ const roomSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    title: {
+      type: String,
+    },
+
     host: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -27,7 +31,7 @@ const roomSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     expiresAt: {
       type: Date,

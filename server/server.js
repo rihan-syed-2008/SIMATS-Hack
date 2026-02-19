@@ -12,6 +12,9 @@ const connectDB = require("./src/config/db");
 
 const Room = require("./src/models/Room");
 
+const roomRoutes = require("./src/routes/roomRoutes");
+app.use("/api/rooms", roomRoutes);
+
 app.use("/api/users", userRoutes);
 
 // Connect DB
