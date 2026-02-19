@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Dashboard.css";
 
 import axios from "axios";
@@ -8,6 +8,12 @@ const Dashboard = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [roomCode, setRoomCode] = useState("");
+  const [friends, setFriends] = useState([]);
+  const [friendIdInput, setFriendIdInput] = useState("");
+  const [friendError, setFriendError] = useState("");
+
+  const publicId = localStorage.getItem("publicId");
+
   const API = `${import.meta.env.VITE_API_URL}/api/rooms`;
   const navigate = useNavigate();
 
@@ -18,6 +24,58 @@ const Dashboard = () => {
     navigate("/", { replace: true });
   };
 
+  useEffect(() => {
+    const loadFriends = async () => {
+      const token = localStorage.getItem("token");
+
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/users/friends`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setFriends(res.data);
+    };
+
+    loadFriends();
+  }, []);
+
+  /*const handleAddFriend = async () => {
+    console.log("Add friend clicked");
+    const token = localStorage.getItem("token");
+
+    await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/users/add-friend`,
+      { friendPublicId: friendIdInput },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    setFriendIdInput("");
+    window.location.reload(); // quick refresh for hackathon
+  };*/
+  const handleAddFriend = async () => {
+    try {
+      setFriendError("");
+      const token = localStorage.getItem("token");
+
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/add-friend`,
+        { friendPublicId: friendIdInput },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setFriendIdInput("");
+
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/users/friends`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setFriends(res.data);
+    } catch (err) {
+      setFriendError(err.response?.data?.message || "Something went wrong");
+    }
+  };
+
   return (
     <div className="dashboard-wrapper">
       {/* Navbar */}
@@ -26,6 +84,13 @@ const Dashboard = () => {
         <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
+
+        <div className="profile-section">
+          <div className="profile-icon">
+            {publicId?.charAt(0).toUpperCase()}
+          </div>
+          <span className="profile-id">{publicId}</span>
+        </div>
       </div>
 
       <div className="dashboard-content">
@@ -117,6 +182,31 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      <div className="friends-section">
+        <h3>Friends</h3>
+
+        <div className="add-friend">
+          <input
+            type="text"
+            placeholder="Enter public ID"
+            value={friendIdInput}
+            onChange={(e) => setFriendIdInput(e.target.value)}
+          />
+          {friendError && (
+            <p style={{ color: "red", fontSize: "14px" }}>{friendError}</p>
+          )}
+
+          <button onClick={handleAddFriend}>Add</button>
+        </div>
+
+        <ul>
+          {friends.map((friend) => (
+            <li key={friend._id}>
+              {friend.name} ({friend.publicId})
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };

@@ -12,11 +12,13 @@ exports.register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const publicId = await generatePublicId(name);
 
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
+      publicId,
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -58,6 +60,7 @@ exports.login = async (req, res) => {
       token,
       name: user.name,
       userId: user._id,
+      publicId: user.publicId,
     });
   } catch (error) {
     console.error(error);
@@ -84,12 +87,14 @@ exports.googleLogin = async (req, res) => {
     const { email, name, picture } = googleRes.data;
 
     let user = await User.findOne({ email });
+    const publicId = await generatePublicId(name);
 
     if (!user) {
       user = await User.create({
         name,
         email,
         password: "google_oauth_user",
+        publicId: user.publicId,
       });
     }
 

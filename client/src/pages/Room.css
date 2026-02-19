@@ -145,3 +145,27 @@
     transform: translateY(10px);
   }
 }
+.profile-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 20px;
+}
+
+.profile-icon {
+  width: 35px;
+  height: 35px;
+  background: #4f46e5;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.profile-id {
+  font-size: 14px;
+  font-weight: 500;
+}

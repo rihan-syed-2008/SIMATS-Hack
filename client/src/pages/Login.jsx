@@ -28,6 +28,7 @@ const Login = () => {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("username", res.data.name);
         localStorage.setItem("userId", res.data.userId);
+        localStorage.setItem("publicId", res.data.publicId);
 
         console.log("Login response:", res.data);
         navigate("/dashboard", { replace: true });
@@ -57,6 +58,7 @@ const Login = () => {
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("username", res.data.name);
       localStorage.setItem("userId", res.data.userId);
+      localStorage.setItem("publicId", res.data.publicId);
 
       console.log("Login response:", res.data);
 

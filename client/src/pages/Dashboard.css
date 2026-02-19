@@ -165,3 +165,16 @@
     opacity: 1;
   }
 }
+
+.friends-section {
+  margin-top: 30px;
+  padding: 15px;
+  background: #1c1c1c;
+  border-radius: 8px;
+}
+
+.add-friend {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}

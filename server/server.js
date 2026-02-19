@@ -4,10 +4,15 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 require("dotenv").config();
 
+const userRoutes = require("./src/routes/userRoutes");
+
 const app = require("./src/app");
+
 const connectDB = require("./src/config/db");
 
 const Room = require("./src/models/Room");
+
+app.use("/api/users", userRoutes);
 
 // Connect DB
 connectDB();

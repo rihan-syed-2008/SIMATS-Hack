@@ -25,6 +25,7 @@ const Room = () => {
   const [allowedUsers, setAllowedUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
   const [notification, setNotification] = useState(null);
+
   const timerRef = useRef(null);
 
   const navigate = useNavigate();
