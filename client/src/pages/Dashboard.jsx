@@ -16,6 +16,11 @@ const Dashboard = () => {
   const [title, setTitle] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
   const [duration, setDuration] = useState(30);
+  const [invitedUsers, setInvitedUsers] = useState([]);
+  const [scheduleError, setScheduleError] = useState("");
+  const [joinError, setJoinError] = useState("");
+  //const upcomingSessions = sessions.filter((s) => !s.isActive);
+  //const liveSessions = sessions.filter((s) => s.isActive);
 
   const publicId = localStorage.getItem("publicId");
 
@@ -39,6 +44,7 @@ const Dashboard = () => {
           title,
           scheduledFor,
           duration,
+          invitedUsers,
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -49,8 +55,38 @@ const Dashboard = () => {
       setTitle("");
       setScheduledFor("");
       setDuration(30);
+      setInvitedUsers([]);
+    } catch (err) {
+      if (err.response?.status === 400) {
+        setScheduleError("Cannot schedule a meeting in the past.");
+      } else {
+        console.log(err);
+      }
+    }
+  };
+
+  const handleCancel = async (id) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/rooms/cancel/${id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setSessions((prev) => prev.filter((s) => s._id !== id));
     } catch (err) {
       console.log(err);
+    }
+  };
+
+  const handleInvite = (e) => {
+    const id = e.target.value;
+
+    if (e.target.checked) {
+      setInvitedUsers((prev) => [...prev, id]);
+    } else {
+      setInvitedUsers((prev) => prev.filter((u) => u !== id));
     }
   };
 
@@ -69,19 +105,6 @@ const Dashboard = () => {
     loadFriends();
   }, []);
 
-  /*const handleAddFriend = async () => {
-    console.log("Add friend clicked");
-    const token = localStorage.getItem("token");
-
-    await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/users/add-friend`,
-      { friendPublicId: friendIdInput },
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-
-    setFriendIdInput("");
-    window.location.reload(); // quick refresh for hackathon
-  };*/
   const handleAddFriend = async () => {
     try {
       setFriendError("");
@@ -104,6 +127,53 @@ const Dashboard = () => {
     } catch (err) {
       setFriendError(err.response?.data?.message || "Something went wrong");
     }
+  };
+  const fetchSessions = async () => {
+    const token = localStorage.getItem("token");
+
+    const res = await axios.get(
+      `${import.meta.env.VITE_API_URL}/api/rooms/upcoming`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    setSessions(res.data);
+  };
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchSessions();
+    }, 3000); // refresh every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const userId = localStorage.getItem("userId");
+
+  const hostedSessions = sessions.filter((session) => session.host === userId);
+
+  const invitedSessions = sessions.filter((session) => session.host !== userId);
+
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getTimeLeft = (date) => {
+    const diff = new Date(date).getTime() - now;
+
+    if (diff <= 0) return "Starting now";
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}d ${hours % 24}h left`;
+    if (hours > 0) return `${hours}h ${minutes % 60}m left`;
+    return `${minutes}m left`;
   };
 
   return (
@@ -188,19 +258,35 @@ const Dashboard = () => {
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value)}
             />
+            {joinError && (
+              <p style={{ color: "red", fontSize: "14px" }}>{joinError}</p>
+            )}
+
             <button
               onClick={async () => {
-                const token = localStorage.getItem("token");
+                try {
+                  setJoinError(""); // clear old error
 
-                await axios.post(
-                  API + "/join",
-                  { code: roomCode },
-                  {
-                    headers: { Authorization: `Bearer ${token}` },
-                  },
-                );
+                  const token = localStorage.getItem("token");
 
-                navigate(`/room/${roomCode}`, { replace: true });
+                  await axios.post(
+                    API + "/join",
+                    { code: roomCode },
+                    {
+                      headers: { Authorization: `Bearer ${token}` },
+                    },
+                  );
+
+                  navigate(`/room/${roomCode}`, { replace: true });
+                } catch (err) {
+                  if (err.response?.status === 404) {
+                    setJoinError("Room does not exist.");
+                  } else if (err.response?.status === 400) {
+                    setJoinError("Host has not started the meeting yet.");
+                  } else {
+                    setJoinError("Something went wrong.");
+                  }
+                }
               }}
             >
               Join
@@ -245,19 +331,134 @@ const Dashboard = () => {
           </button>
         </div>
 
+        {/* HOSTED SECTION */}
+        <h4>Hosted by You</h4>
         <div className="sessions-grid">
-          {sessions.length === 0 ? (
-            <p>No upcoming sessions</p>
+          {hostedSessions.length === 0 ? (
+            <p>No hosted sessions</p>
           ) : (
-            sessions.map((session) => (
-              <div key={session._id} className="session-card">
-                <h4>{session.title}</h4>
-                <p>
-                  Starts at: {new Date(session.scheduledFor).toLocaleString()}
-                </p>
-                <p>Duration: {session.duration} mins</p>
-              </div>
-            ))
+            hostedSessions.map((session) => {
+              const canStart = new Date(session.scheduledFor) <= new Date();
+
+              return (
+                <div key={session._id} className="session-card">
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <h4>{session.title}</h4>
+
+                    {session.isActive && (
+                      <span className="live-badge">LIVE</span>
+                    )}
+                  </div>
+
+                  <p>
+                    Starts at: {new Date(session.scheduledFor).toLocaleString()}
+                  </p>
+
+                  <p>Duration: {session.duration} mins</p>
+
+                  <p className="countdown">
+                    {getTimeLeft(session.scheduledFor)}
+                  </p>
+
+                  {/* Start Button */}
+                  {/* Start Button */}
+                  {!canStart ? (
+                    <button disabled style={{ opacity: 0.5 }}>
+                      Starts at scheduled time
+                    </button>
+                  ) : session.isActive ? (
+                    <button
+                      onClick={() => navigate(`/room/${session.code}`)}
+                      style={{ background: "green", color: "white" }}
+                    >
+                      Enter Meeting
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem("token");
+
+                          await axios.post(
+                            `${import.meta.env.VITE_API_URL}/api/rooms/start/${session._id}`,
+                            {},
+                            {
+                              headers: { Authorization: `Bearer ${token}` },
+                            },
+                          );
+
+                          navigate(`/room/${session.code}`);
+                        } catch (err) {
+                          console.log(err);
+                        }
+                      }}
+                      style={{ background: "green", color: "white" }}
+                    >
+                      Start Meeting
+                    </button>
+                  )}
+
+                  {/* Cancel Button */}
+                  <button
+                    onClick={() => handleCancel(session._id)}
+                    style={{
+                      marginTop: "10px",
+                      background: "red",
+                      color: "white",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* INVITED SECTION */}
+        <h4 style={{ marginTop: "30px" }}>Invited to You</h4>
+        <div className="sessions-grid">
+          {invitedSessions.length === 0 ? (
+            <p>No invited sessions</p>
+          ) : (
+            invitedSessions.map((session) => {
+              const isLive = session.isActive;
+
+              return (
+                <div key={session._id} className="session-card">
+                  <h4>{session.title}</h4>
+
+                  <p>
+                    Starts at: {new Date(session.scheduledFor).toLocaleString()}
+                  </p>
+
+                  <p>Duration: {session.duration} mins</p>
+
+                  <p className="countdown">
+                    {getTimeLeft(session.scheduledFor)}
+                  </p>
+
+                  {isLive ? (
+                    <button
+                      onClick={() => navigate(`/room/${session.code}`)}
+                      style={{ background: "#007bff", color: "white" }}
+                    >
+                      Join Meeting
+                    </button>
+                  ) : (
+                    <button disabled style={{ opacity: 0.5 }}>
+                      Waiting for host to start...
+                    </button>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -276,8 +477,13 @@ const Dashboard = () => {
             <input
               type="datetime-local"
               value={scheduledFor}
+              min={new Date().toISOString().slice(0, 16)}
               onChange={(e) => setScheduledFor(e.target.value)}
             />
+
+            {scheduleError && (
+              <p style={{ color: "red", fontSize: "14px" }}>{scheduleError}</p>
+            )}
 
             <input
               type="number"
@@ -285,6 +491,17 @@ const Dashboard = () => {
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
             />
+            <h4>Invite Friends</h4>
+            {friends.map((friend) => (
+              <label key={friend._id}>
+                <input
+                  type="checkbox"
+                  value={friend._id}
+                  onChange={(e) => handleInvite(e)}
+                />
+                {friend.name}
+              </label>
+            ))}
 
             <div className="modal-actions">
               <button onClick={handleSchedule}>Schedule</button>

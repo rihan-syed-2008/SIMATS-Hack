@@ -47,7 +47,14 @@ const roomHosts = {};
 
 io.on("connection", (socket) => {
   socket.on("end_room", async ({ roomCode }) => {
-    if (roomHosts[roomCode] !== socket.userId) return;
+    const room = await Room.findOne({ code: roomCode });
+    if (!room) return;
+
+    // Only DB host can end room
+
+    console.log("DB Host:", room.host.toString());
+    console.log("Socket User:", socket.userId);
+    if (room.host.toString() !== socket.userId) return;
 
     io.to(roomCode).emit("room_ended");
 
@@ -55,7 +62,6 @@ io.on("connection", (socket) => {
     delete roomUsers[roomCode];
     delete roomBoards[roomCode];
     delete roomTimers[roomCode];
-    delete roomHosts[roomCode];
     delete roomPermissions[roomCode];
 
     // Delete from MongoDB
@@ -64,13 +70,16 @@ io.on("connection", (socket) => {
     console.log("Room deleted:", roomCode);
   });
 
-  socket.on("transfer_host", ({ roomCode, newHostId }) => {
-    if (!roomHosts[roomCode]) return;
+  socket.on("transfer_host", async ({ roomCode, newHostId }) => {
+    const room = await Room.findOne({ code: roomCode });
+    if (!room) return;
 
-    // Only current host can transfer
-    if (roomHosts[roomCode] !== socket.userId) return;
+    // Only current DB host can transfer
+    if (room.host.toString() !== socket.userId) return;
 
-    roomHosts[roomCode] = newHostId;
+    // Update DB
+    room.host = newHostId;
+    await room.save();
 
     io.to(roomCode).emit("host_changed", {
       newHostId,
@@ -128,17 +137,13 @@ io.on("connection", (socket) => {
     socket.to(roomCode).emit("draw", stroke);
   });
 
-  socket.on("join_room", ({ roomCode, username, userId }) => {
+  socket.on("join_room", async ({ roomCode, username, userId }) => {
     socket.join(roomCode);
     socket.username = username;
     socket.userId = userId;
     socket.to(roomCode).emit("system_message", {
       message: `${username} joined the room`,
     });
-
-    if (!roomHosts[roomCode]) {
-      roomHosts[roomCode] = userId; // first user becomes host
-    }
 
     if (!roomPermissions[roomCode]) {
       roomPermissions[roomCode] = [];
@@ -168,6 +173,13 @@ io.on("connection", (socket) => {
 
     if (roomTimers[roomCode]) {
       socket.emit("timer_started", roomTimers[roomCode]);
+    }
+
+    const room = await Room.findOne({ code: roomCode });
+    if (room) {
+      io.to(roomCode).emit("host_changed", {
+        newHostId: room.host.toString(),
+      });
     }
 
     console.log(`${username} joined room ${roomCode}`);
@@ -251,7 +263,11 @@ io.on("connection", (socket) => {
         // Transfer host if needed
         if (roomUsers[roomCode].length > 0) {
           const newHost = roomUsers[roomCode][0];
-          roomHosts[roomCode] = newHost.userId;
+          const room = await Room.findOne({ code: roomCode });
+          if (room) {
+            room.host = newHost.userId;
+            await room.save();
+          }
 
           io.to(roomCode).emit("host_changed", {
             newHostId: newHost.userId,
@@ -271,7 +287,7 @@ io.on("connection", (socket) => {
       }
     }
   });
-  socket.on("leave_room", ({ roomCode }) => {
+  socket.on("leave_room", async ({ roomCode }) => {
     socket.leave(roomCode);
 
     if (!roomUsers[roomCode]) return;
@@ -293,7 +309,11 @@ io.on("connection", (socket) => {
     if (roomUsers[roomCode].length > 0) {
       const newHost = roomUsers[roomCode][0];
 
-      roomHosts[roomCode] = newHost.userId;
+      const room = await Room.findOne({ code: roomCode });
+      if (room) {
+        room.host = newHost.userId;
+        await room.save();
+      }
 
       io.to(roomCode).emit("host_changed", {
         newHostId: newHost.userId,

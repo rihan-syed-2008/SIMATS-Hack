@@ -37,6 +37,12 @@ const roomSchema = new mongoose.Schema(
       type: Date,
       default: () => new Date(Date.now() + 1000 * 60 * 60 * 6), // 6 hours
     },
+    invitedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true },
 );

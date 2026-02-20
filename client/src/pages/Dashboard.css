@@ -229,3 +229,12 @@
   display: flex;
   justify-content: space-between;
 }
+
+.live-badge {
+  background: #00c853;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
