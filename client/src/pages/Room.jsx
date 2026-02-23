@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
 import "./Room.css";
+//import {FaUsers, FaPlay, FaPause, FaStop, FaSignOutAlt} from react-icons/fa;
 import Whiteboard from "../components/Whiteboard";
 
 const socket = io(import.meta.env.VITE_API_URL);
@@ -21,12 +22,20 @@ const Room = () => {
   const [hostId, setHostId] = useState(null);
   const [timeLeft, setTimeLeft] = useState(1500); // 25 mins default
   const [isRunning, setIsRunning] = useState(false);
-  const [customMinutes, setCustomMinutes] = useState(25);
+  const [customMinutes] = useState(25);
   const [allowedUsers, setAllowedUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+
+  const remoteAudioRef = useRef(null);
 
   const timerRef = useRef(null);
+
+  const peersRef = useRef({});
+  const [localStream, setLocalStream] = useState(null);
+  const [isMicOn, setIsMicOn] = useState(true);
 
   const navigate = useNavigate();
 
@@ -39,7 +48,7 @@ const Room = () => {
 
       setTimeout(() => {
         setNotification(null);
-        navigate("/dashboard");
+        navigate("/home");
       }, 2500); // 2.5 sec
     });
 
@@ -131,6 +140,133 @@ const Room = () => {
   }, [code, navigate]);
 
   useEffect(() => {
+    const initMic = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        setLocalStream(stream);
+        socket.emit("user_joined", {
+          roomCode: code,
+          userId: localStorage.getItem("userId"),
+        });
+      } catch (err) {
+        console.error("Mic permission denied", err);
+      }
+    };
+
+    initMic();
+  }, []);
+
+  const createPeerConnection = async (remoteUserId, isInitiator) => {
+    if (peersRef.current[remoteUserId]) {
+      return peersRef.current[remoteUserId]; // 🔥 prevent duplicate
+    }
+
+    if (!localStream) return;
+
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    peersRef.current[remoteUserId] = peer;
+
+    localStream.getTracks().forEach((track) => {
+      peer.addTrack(track, localStream);
+    });
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc_ice", {
+          candidate: event.candidate,
+          to: remoteUserId,
+        });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    if (isInitiator) {
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+
+      socket.emit("webrtc_offer", {
+        offer,
+        to: remoteUserId,
+      });
+    }
+
+    return peer;
+  };
+
+  useEffect(() => {
+    if (!localStream) return;
+
+    // WebRTC socket events
+    socket.on("existing_users", async (users) => {
+      if (!localStream) return;
+
+      users.forEach((remoteUserId) => {
+        createPeerConnection(remoteUserId, true);
+      });
+    });
+
+    socket.on("new_user", ({ userId }) => {
+      createPeerConnection(userId, false);
+    });
+
+    socket.on("webrtc_offer", async ({ offer, from }) => {
+      let peer = peersRef.current[from];
+
+      if (!peer) {
+        peer = await createPeerConnection(from, false);
+      }
+
+      if (peer.signalingState !== "stable") return;
+      console.log(peer.signalingState);
+
+      await peer.setRemoteDescription(new RTCSessionDescription(offer));
+
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+
+      socket.emit("webrtc_answer", {
+        answer,
+        to: from,
+      });
+    });
+
+    socket.on("webrtc_answer", async ({ answer, from }) => {
+      const peer = peersRef.current[from];
+      if (!peer) return;
+
+      if (peer.signalingState !== "have-local-offer") return;
+      console.log(peer.signalingState);
+
+      await peer.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("webrtc_ice", async ({ candidate, from }) => {
+      const peer = peersRef.current[from];
+      if (peer) {
+        await peer.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+
+    return () => {
+      socket.off("existing_users");
+      socket.off("new_user");
+      socket.off("webrtc_offer");
+      socket.off("webrtc_answer");
+      socket.off("webrtc_ice");
+    };
+  }, [localStream]);
+
+  useEffect(() => {
     const fetchRoom = async () => {
       const token = localStorage.getItem("token");
       const userId = localStorage.getItem("userId");
@@ -193,65 +329,41 @@ const Room = () => {
 
   return (
     <div className="room-wrapper">
-      {/* Top Bar */}
-      <div className="room-navbar">
-        <h2>Room Code: {code}</h2>
-        <div className="room-actions">
-          {isHost && (
-            <>
-              <input
-                type="number"
-                min="1"
-                placeholder="Minutes"
-                value={customMinutes}
-                onChange={(e) => setCustomMinutes(e.target.value)}
-                style={{ width: "100px", marginRight: "10px" }}
-              />
+      {/* HEADER */}
 
-              <button
-                className="start-btn"
-                disabled={!customMinutes || customMinutes <= 0}
-                onClick={() =>
-                  socket.emit("start_timer", {
-                    roomCode: code,
-                    duration: customMinutes * 60 * 1000,
-                  })
-                }
-              >
-                {isRunning ? "Session Running..." : "Start Session"}
-              </button>
-            </>
-          )}
+      <div className="room-header">
+        <div className="room-heading">
+          <h2>Welcome, {username}</h2>
+          <p className="room-subtitle">Your study session</p>
 
-          <button className="leave-btn" onClick={leaveRoom}>
-            Leave
-          </button>
-          {isHost && (
-            <button
-              style={{ marginLeft: "10px", background: "red", color: "white" }}
-              onClick={() => socket.emit("end_room", { roomCode: code })}
-            >
-              End Meeting
-            </button>
-          )}
+          <div className="room-code">
+            Room Code: <span>{code}</span>
+          </div>
+          <div className="room-divider" />
         </div>
       </div>
 
-      <div className="room-layout">
-        {/* Chat Section */}
-        <div className="chat-section">
+      {/* MAIN CONTENT */}
+      <div className="room-main">
+        {/* WHITEBOARD */}
+        <div className="whiteboard-container">
+          <Whiteboard
+            socket={socket}
+            roomCode={code}
+            isHost={isHost}
+            allowedUsers={allowedUsers}
+            userId={localStorage.getItem("userId")}
+          />
+        </div>
+        <audio ref={remoteAudioRef} autoPlay />
+
+        {/* CHAT */}
+        <div className="chat-container">
           <h3>Chat</h3>
 
           <div className="chat-messages">
             {messages.map((msg, index) => (
-              <p
-                key={index}
-                style={{
-                  textAlign: msg.system ? "center" : "left",
-                  color: msg.system ? "gray" : "black",
-                  fontStyle: msg.system ? "italic" : "normal",
-                }}
-              >
+              <p key={index} className={msg.system ? "system" : ""}>
                 {!msg.system && <strong>{msg.author}: </strong>}
                 {msg.message}
               </p>
@@ -259,15 +371,7 @@ const Room = () => {
           </div>
 
           {typingUser && typingUser !== username && (
-            <div
-              style={{
-                fontStyle: "italic",
-                fontSize: "14px",
-                marginTop: "5px",
-              }}
-            >
-              {typingUser} is typing...
-            </div>
+            <div className="typing-indicator">{typingUser} is typing...</div>
           )}
 
           <div className="chat-input">
@@ -278,45 +382,150 @@ const Room = () => {
               placeholder="Type a message..."
               rows={2}
             />
-
             <button onClick={sendMessage}>Send</button>
           </div>
         </div>
+      </div>
 
-        {/* Right Panel */}
-        <div className="side-panel">
-          <div className="participants-card">
-            <h3>Participants</h3>
-            <ul>
-              {participants.map((user, index) => (
-                <li key={index} style={{ marginBottom: "8px" }}>
-                  {user.username}
-                  {String(user.userId) === String(hostId) && " (Host)"}
+      {/* BOTTOM NAV */}
+      <div className="bottom-nav">
+        {/* Participants */}
+        <button
+          className="nav-btn"
+          onClick={() => {
+            const track = localStream?.getAudioTracks()[0];
+            if (!track) return;
 
-                  {/* 🔥 Only show buttons if current user is host AND this is not host */}
-                  {isHost && String(user.userId) !== String(hostId) && (
+            track.enabled = !track.enabled;
+            setIsMicOn(track.enabled);
+          }}
+        >
+          {isMicOn ? "Mute Mic" : "Unmute Mic"}
+        </button>
+        <button
+          className="nav-btn"
+          onClick={() => setShowParticipants((prev) => !prev)}
+        >
+          👥 {participants.length}
+        </button>
+
+        <button
+          className="nav-btn"
+          onClick={() => setShowChat((prev) => !prev)}
+        >
+          💬
+        </button>
+        {showChat && (
+          <div className="mobile-chat-drawer">
+            <h3>Chat</h3>
+
+            <div className="chat-messages">
+              {messages.map((msg, index) => (
+                <p key={index} className={msg.system ? "system" : ""}>
+                  {!msg.system && <strong>{msg.author}: </strong>}
+                  {msg.message}
+                </p>
+              ))}
+            </div>
+
+            <div className="chat-input">
+              <textarea
+                value={message}
+                onChange={handleTyping}
+                onKeyDown={handleKeyDown}
+                rows={2}
+              />
+              <button onClick={sendMessage}>Send</button>
+            </div>
+          </div>
+        )}
+
+        {/* Timer */}
+        <div className="nav-timer">
+          {Math.floor(timeLeft / 60)
+            .toString()
+            .padStart(2, "0")}
+          :{(timeLeft % 60).toString().padStart(2, "0")}
+        </div>
+
+        {/* Host Controls */}
+        {isHost && (
+          <>
+            {!isRunning ? (
+              <button
+                className="nav-btn"
+                onClick={() =>
+                  socket.emit("start_timer", {
+                    roomCode: code,
+                    duration: customMinutes * 60 * 1000,
+                  })
+                }
+              >
+                ▶
+              </button>
+            ) : (
+              <button
+                className="nav-btn"
+                onClick={() => socket.emit("pause_timer", { roomCode: code })}
+              >
+                ⏸
+              </button>
+            )}
+
+            <button
+              className="nav-btn"
+              onClick={() => socket.emit("reset_timer", { roomCode: code })}
+            >
+              ⏹
+            </button>
+          </>
+        )}
+
+        <button className="nav-btn" onClick={leaveRoom}>
+          Leave
+        </button>
+
+        {isHost && (
+          <button
+            className="nav-btn danger"
+            onClick={() => socket.emit("end_room", { roomCode: code })}
+          >
+            End
+          </button>
+        )}
+      </div>
+
+      {/* PARTICIPANTS DRAWER */}
+      {showParticipants && (
+        <div className="participants-drawer">
+          <h3>Participants</h3>
+          <ul>
+            {participants.map((user) => (
+              <li key={user.userId}>
+                {user.username}
+                {String(user.userId) === String(hostId) && (
+                  <span className="host-tag"> (Host)</span>
+                )}
+
+                {isHost && String(user.userId) !== String(hostId) && (
+                  <div className="participant-actions">
                     <button
-                      style={{ marginLeft: "10px" }}
-                      onClick={() => {
-                        if (allowedUsers.includes(user.userId)) {
-                          socket.emit("revoke_permission", {
-                            roomCode: code,
-                            userId: user.userId,
-                          });
-                        } else {
-                          socket.emit("grant_permission", {
-                            roomCode: code,
-                            userId: user.userId,
-                          });
-                        }
-                      }}
+                      onClick={() =>
+                        allowedUsers.includes(user.userId)
+                          ? socket.emit("revoke_permission", {
+                              roomCode: code,
+                              userId: user.userId,
+                            })
+                          : socket.emit("grant_permission", {
+                              roomCode: code,
+                              userId: user.userId,
+                            })
+                      }
                     >
                       {allowedUsers.includes(user.userId) ? "Revoke" : "Allow"}
                     </button>
-                  )}
-                  {isHost && String(user.userId) !== String(hostId) && (
+
                     <button
-                      style={{ marginLeft: "10px" }}
                       onClick={() =>
                         socket.emit("transfer_host", {
                           roomCode: code,
@@ -326,58 +535,15 @@ const Room = () => {
                     >
                       Make Host
                     </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="timer-card">
-            <h3>Pomodoro</h3>
-
-            <h1>
-              {Math.floor(timeLeft / 60)
-                .toString()
-                .padStart(2, "0")}
-              :{(timeLeft % 60).toString().padStart(2, "0")}
-            </h1>
-
-            {isHost && (
-              <>
-                <button
-                  onClick={() => socket.emit("pause_timer", { roomCode: code })}
-                >
-                  Pause
-                </button>
-
-                <button
-                  onClick={() =>
-                    socket.emit("resume_timer", { roomCode: code })
-                  }
-                >
-                  Resume
-                </button>
-
-                <button
-                  onClick={() => socket.emit("reset_timer", { roomCode: code })}
-                >
-                  Reset
-                </button>
-              </>
-            )}
-          </div>
-          {notification && (
-            <div className="toast-notification">{notification}</div>
-          )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
-      <Whiteboard
-        socket={socket}
-        roomCode={code}
-        isHost={isHost}
-        allowedUsers={allowedUsers}
-        userId={localStorage.getItem("userId")}
-      />
+      )}
+
+      {notification && <div className="toast-notification">{notification}</div>}
     </div>
   );
 };

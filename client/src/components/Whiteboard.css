@@ -1,0 +1,106 @@
+/* WHITEBOARD WRAPPER */
+.whiteboard-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* CANVAS CONTAINER */
+.canvas-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* CANVAS */
+.canvas-base,
+.canvas-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* TOOLBAR */
+.wb-toolbar {
+  position: absolute;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 30, 70, 0.95);
+  border-radius: 999px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* COLOR */
+.wb-color {
+  width: 32px;
+  height: 32px;
+  border: none;
+  cursor: pointer;
+}
+
+/* THICKNESS */
+.wb-thickness button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.wb-thickness button.active {
+  background: #06b6d4;
+  color: black;
+}
+
+/* BUTTONS */
+.wb-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: white;
+}
+
+.wb-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wb-btn.active {
+  background: #06b6d4;
+  color: black;
+}
+
+.wb-btn.danger {
+  background: #c62828;
+}
+
+/* SMART TOGGLE */
+.wb-toggle {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #444;
+  font-size: 13px;
+  cursor: pointer;
+  color: white;
+}
+
+.wb-toggle.active {
+  background: #06b6d4;
+  color: black;
+  border: none;
+}

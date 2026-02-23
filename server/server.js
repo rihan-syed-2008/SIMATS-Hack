@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -13,9 +15,13 @@ const connectDB = require("./src/config/db");
 const Room = require("./src/models/Room");
 
 const roomRoutes = require("./src/routes/roomRoutes");
+
+const aiRoutes = require("./src/routes/aiRoutes");
 app.use("/api/rooms", roomRoutes);
 
 app.use("/api/users", userRoutes);
+
+app.use("/api/ai", aiRoutes);
 
 // Connect DB
 connectDB();
@@ -68,6 +74,55 @@ io.on("connection", (socket) => {
     await Room.deleteOne({ code: roomCode });
 
     console.log("Room deleted:", roomCode);
+  });
+
+  socket.on("user_joined", ({ roomCode, userId }) => {
+    socket.userId = userId; // ✅ ADD THIS LINE
+
+    socket.join(roomCode);
+
+    const clients = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
+
+    const existingUsers = clients
+      .filter((id) => id !== socket.id)
+      .map((id) => io.sockets.sockets.get(id).userId);
+
+    socket.emit("existing_users", existingUsers);
+
+    socket.to(roomCode).emit("new_user", { userId });
+  });
+
+  socket.on("webrtc_offer", ({ offer, to }) => {
+    for (const [id, s] of io.sockets.sockets) {
+      if (s.userId === to) {
+        s.emit("webrtc_offer", {
+          offer,
+          from: socket.userId,
+        });
+      }
+    }
+  });
+
+  socket.on("webrtc_answer", ({ answer, to }) => {
+    for (const [id, s] of io.sockets.sockets) {
+      if (s.userId === to) {
+        s.emit("webrtc_answer", {
+          answer,
+          from: socket.userId,
+        });
+      }
+    }
+  });
+
+  socket.on("webrtc_ice", ({ candidate, to }) => {
+    for (const [id, s] of io.sockets.sockets) {
+      if (s.userId === to) {
+        s.emit("webrtc_ice", {
+          candidate,
+          from: socket.userId,
+        });
+      }
+    }
   });
 
   socket.on("transfer_host", async ({ roomCode, newHostId }) => {
@@ -130,11 +185,60 @@ io.on("connection", (socket) => {
       roomBoards[roomCode] = [];
     }
 
-    const stroke = { x, y, prevX, prevY, color, lineWidth };
+    const stroke = { type: "stroke", x, y, prevX, prevY, color, lineWidth };
 
     roomBoards[roomCode].push(stroke);
 
     socket.to(roomCode).emit("draw", stroke);
+  });
+  socket.on("add_text", ({ roomCode, x, y, text, color, lineWidth }) => {
+    if (!roomBoards[roomCode]) roomBoards[roomCode] = [];
+
+    const textObject = {
+      type: "text",
+      x,
+      y,
+      text,
+      color,
+      lineWidth,
+    };
+
+    roomBoards[roomCode].push(textObject);
+
+    socket.to(roomCode).emit("add_text", textObject);
+  });
+
+  socket.on("add_image_object", ({ roomCode, image }) => {
+    if (!roomBoards[roomCode]) roomBoards[roomCode] = [];
+
+    const imageObject = {
+      type: "image",
+      ...image,
+    };
+
+    roomBoards[roomCode].push(imageObject);
+
+    socket.to(roomCode).emit("add_image_object", imageObject);
+  });
+
+  socket.on("delete_image_object", ({ roomCode, id }) => {
+    if (!roomBoards[roomCode]) return;
+
+    roomBoards[roomCode] = roomBoards[roomCode].filter(
+      (obj) => !(obj.type === "image" && obj.id === id),
+    );
+
+    io.to(roomCode).emit("delete_image_object", id);
+  });
+
+  socket.on("move_image_object", ({ roomCode, id, x, y }) => {
+    if (!roomBoards[roomCode]) return;
+
+    roomBoards[roomCode] = roomBoards[roomCode].map((obj) =>
+      obj.type === "image" && obj.id === id ? { ...obj, x, y } : obj,
+    );
+
+    socket.to(roomCode).emit("move_image_object", { id, x, y });
   });
 
   socket.on("join_room", async ({ roomCode, username, userId }) => {

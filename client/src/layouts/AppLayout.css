@@ -1,0 +1,4 @@
+.app-container {
+  min-height: 100vh;
+  padding: 100px 40px 120px; /* top & bottom spacing for nav */
+}

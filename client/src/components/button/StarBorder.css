@@ -1,0 +1,73 @@
+.star-border-container {
+  display: block;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 0 auto;
+  width: 80%;
+}
+
+.border-gradient-bottom {
+  position: absolute;
+  width: 300%;
+  height: 100%;
+  opacity: 0.9;
+  bottom: -20px;
+  right: -250%;
+  border-radius: 50%;
+  animation: star-movement-bottom linear infinite alternate;
+  z-index: 0;
+}
+
+.border-gradient-top {
+  position: absolute;
+  opacity: 0.9;
+  width: 300%;
+  height: 100%;
+  top: -20px;
+  left: -250%;
+  border-radius: 50%;
+  animation: star-movement-top linear infinite alternate;
+  z-index: 0;
+}
+
+.inner-content {
+  position: relative;
+  border: 1px solid #1b2a60;
+  background: linear-gradient(135deg, #18329a, #102070);
+
+  display: flex; /* 🔥 important */
+  align-items: center; /* vertical center */
+  justify-content: center; /* horizontal center */
+  gap: 10px;
+
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 14px;
+  z-index: 1;
+}
+
+@keyframes star-movement-bottom {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-100%, 0%);
+    opacity: 0;
+  }
+}
+
+@keyframes star-movement-top {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(100%, 0%);
+    opacity: 0;
+  }
+}

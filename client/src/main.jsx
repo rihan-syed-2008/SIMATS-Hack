@@ -5,10 +5,14 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import App from "./App.jsx";
 import "./index.css";
 
+import { UIProvider } from "./context/UIProvider";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <GoogleOAuthProvider clientId="772273803201-3vriijrvkf6tc7egb3k8r964joj1l8d4.apps.googleusercontent.com">
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <UIProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </UIProvider>
   </GoogleOAuthProvider>,
 );

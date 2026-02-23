@@ -5,20 +5,20 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
-  const [showCreate, setShowCreate] = useState(false);
-  const [showJoin, setShowJoin] = useState(false);
-  const [roomCode, setRoomCode] = useState("");
+  //const [showCreate, setShowCreate] = useState(false);
+  //const [showJoin, setShowJoin] = useState(false);
+  //const [roomCode, setRoomCode] = useState("");
   const [friends, setFriends] = useState([]);
   const [friendIdInput, setFriendIdInput] = useState("");
   const [friendError, setFriendError] = useState("");
-  const [sessions, setSessions] = useState([]);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [title, setTitle] = useState("");
-  const [scheduledFor, setScheduledFor] = useState("");
-  const [duration, setDuration] = useState(30);
-  const [invitedUsers, setInvitedUsers] = useState([]);
-  const [scheduleError, setScheduleError] = useState("");
-  const [joinError, setJoinError] = useState("");
+  //const [sessions, setSessions] = useState([]);
+  //const [showSchedule, setShowSchedule] = useState(false);
+  //const [title, setTitle] = useState("");
+  //const [scheduledFor, setScheduledFor] = useState("");
+  //const [duration, setDuration] = useState(30);
+  //const [invitedUsers, setInvitedUsers] = useState([]);
+  //const [scheduleError, setScheduleError] = useState("");
+  //const [joinError, setJoinError] = useState("");
   //const upcomingSessions = sessions.filter((s) => !s.isActive);
   //const liveSessions = sessions.filter((s) => s.isActive);
 
@@ -34,7 +34,8 @@ const Dashboard = () => {
     navigate("/", { replace: true });
   };
 
-  const handleSchedule = async () => {
+  {
+    /*const handleSchedule = async () => {
     try {
       const token = localStorage.getItem("token");
 
@@ -79,6 +80,7 @@ const Dashboard = () => {
       console.log(err);
     }
   };
+  
 
   const handleInvite = (e) => {
     const id = e.target.value;
@@ -89,6 +91,7 @@ const Dashboard = () => {
       setInvitedUsers((prev) => prev.filter((u) => u !== id));
     }
   };
+  
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -103,7 +106,7 @@ const Dashboard = () => {
     };
 
     loadFriends();
-  }, []);
+  }, []);*/}
 
   const handleAddFriend = async () => {
     try {
@@ -128,7 +131,8 @@ const Dashboard = () => {
       setFriendError(err.response?.data?.message || "Something went wrong");
     }
   };
-  const fetchSessions = async () => {
+  {
+    /*const fetchSessions = async () => {
     const token = localStorage.getItem("token");
 
     const res = await axios.get(
@@ -174,7 +178,8 @@ const Dashboard = () => {
     if (days > 0) return `${days}d ${hours % 24}h left`;
     if (hours > 0) return `${hours}h ${minutes % 60}m left`;
     return `${minutes}m left`;
-  };
+  };*/
+  }
 
   return (
     <div className="dashboard-wrapper">
@@ -192,9 +197,8 @@ const Dashboard = () => {
           <span className="profile-id">{publicId}</span>
         </div>
       </div>
-
+      {/*
       <div className="dashboard-content">
-        {/* Action Cards */}
         <div className="action-grid">
           <div className="action-card">
             <h2>Create Room</h2>
@@ -209,8 +213,6 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-
-      {/* CREATE ROOM MODAL */}
       {showCreate && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -246,8 +248,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-
-      {/* JOIN ROOM MODAL */}
+  
       {showJoin && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -297,7 +298,7 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
-      )}
+      )}*/}
       <div className="friends-section">
         <h3>Friends</h3>
 
@@ -323,7 +324,7 @@ const Dashboard = () => {
           ))}
         </ul>
       </div>
-      <div className="upcoming-section">
+      {/*<div className="upcoming-section">
         <div className="upcoming-header">
           <h3>Upcoming Sessions</h3>
           <button onClick={() => setShowSchedule(true)}>
@@ -331,7 +332,7 @@ const Dashboard = () => {
           </button>
         </div>
 
-        {/* HOSTED SECTION */}
+      
         <h4>Hosted by You</h4>
         <div className="sessions-grid">
           {hostedSessions.length === 0 ? (
@@ -366,8 +367,7 @@ const Dashboard = () => {
                     {getTimeLeft(session.scheduledFor)}
                   </p>
 
-                  {/* Start Button */}
-                  {/* Start Button */}
+                  
                   {!canStart ? (
                     <button disabled style={{ opacity: 0.5 }}>
                       Starts at scheduled time
@@ -404,7 +404,6 @@ const Dashboard = () => {
                     </button>
                   )}
 
-                  {/* Cancel Button */}
                   <button
                     onClick={() => handleCancel(session._id)}
                     style={{
@@ -421,7 +420,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* INVITED SECTION */}
+        \
         <h4 style={{ marginTop: "30px" }}>Invited to You</h4>
         <div className="sessions-grid">
           {invitedSessions.length === 0 ? (
@@ -512,6 +511,6 @@ const Dashboard = () => {
       )}
     </div>
   );
-};
+};*/}
 
 export default Dashboard;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./Whiteboard.css";
 
 const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const canvasRef = useRef(null);
@@ -6,6 +7,15 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
   const [isErasing, setIsErasing] = useState(false);
   const [smartMode, setSmartMode] = useState(false);
+  const [images, setImages] = useState([]);
+  const [activeImageId, setActiveImageId] = useState(null);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const [textMode, setTextMode] = useState(false);
+  const [textInput, setTextInput] = useState("");
+  const [textPosition, setTextPosition] = useState(null);
+  const [texts, setTexts] = useState([]);
   const permanentStrokes = useRef([]);
   const previewRef = useRef(null);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
@@ -29,6 +39,38 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const [lineWidth, setLineWidth] = useState(2);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    const preview = previewRef.current;
+
+    const resizeCanvas = () => {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      preview.width = rect.width;
+      preview.height = rect.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      permanentStrokes.current.forEach((stroke) => {
+        drawLine(
+          stroke.prevX * canvas.width,
+          stroke.prevY * canvas.height,
+          stroke.x * canvas.width,
+          stroke.y * canvas.height,
+          stroke.color,
+          stroke.lineWidth,
+        );
+      });
+    };
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, []);
+
+  useEffect(() => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -37,18 +79,25 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
 
+    socket.on("move_image_object", ({ id, x, y }) => {
+      setImages((prev) =>
+        prev.map((img) => (img.id === id ? { ...img, x, y } : img)),
+      );
+    });
+
     socket.on("board_history", (strokes) => {
       permanentStrokes.current = strokes;
       const ctx = canvasRef.current.getContext("2d");
 
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      const rect = canvasRef.current.getBoundingClientRect();
 
       strokes.forEach((stroke) => {
         drawLine(
-          stroke.prevX,
-          stroke.prevY,
-          stroke.x,
-          stroke.y,
+          stroke.prevX * rect.width,
+          stroke.prevY * rect.height,
+          stroke.x * rect.width,
+          stroke.y * rect.height,
           stroke.color,
           stroke.lineWidth,
         );
@@ -56,18 +105,32 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     });
 
     socket.on("draw", ({ x, y, prevX, prevY, color, lineWidth }) => {
-      drawLine(prevX, prevY, x, y, color, lineWidth);
+      permanentStrokes.current.push({ x, y, prevX, prevY, color, lineWidth });
+
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+
+      drawLine(
+        prevX * rect.width,
+        prevY * rect.height,
+        x * rect.width,
+        y * rect.height,
+        color,
+        lineWidth,
+      );
     });
     socket.on("clear_board", () => {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // 🔥 CLEAR ALL MEMORY
+      permanentStrokes.current = [];
+      setImages([]);
+      setTexts([]);
     });
 
     return () => {
       socket.off("draw");
       socket.off("clear_board");
       socket.off("board_history");
+      socket.off("move_image_object");
     };
   }, [socket]);
 
@@ -154,24 +217,96 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   };
 
   const handleMouseDown = (e) => {
-    strokePoints.current = [];
     if (!canDraw) return;
-
-    setIsDrawing(true);
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    setPrevPos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDrawing || !canDraw) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // ✅ TEXT MODE
+    if (textMode) {
+      setTextPosition({ x, y });
+      return;
+    }
+
+    // ✅ CHECK IF CLICKED ON IMAGE
+    const clickedImage = images.find(
+      (img) =>
+        x >= img.x &&
+        x <= img.x + img.width &&
+        y >= img.y &&
+        y <= img.y + img.height,
+    );
+
+    if (clickedImage) {
+      const cornerSize = 15;
+
+      const isCorner =
+        x >= clickedImage.x + clickedImage.width - cornerSize &&
+        y >= clickedImage.y + clickedImage.height - cornerSize;
+
+      setActiveImageId(clickedImage.id);
+
+      if (isCorner) {
+        setIsResizing(true);
+      } else {
+        setIsDraggingImage(true);
+      }
+
+      return;
+    }
+
+    // ✅ NORMAL DRAWING STARTS HERE
+    strokePoints.current = [];
+    setIsDrawing(true);
+
+    setPrevPos({ x, y });
+  };
+
+  const handleMouseMove = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (isResizing && activeImageId) {
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === activeImageId
+            ? {
+                ...img,
+                width: Math.max(50, x - img.x),
+                height: Math.max(50, y - img.y),
+              }
+            : img,
+        ),
+      );
+      return;
+    }
+
+    // ✅ IMAGE DRAGGING MODE
+    if (isDraggingImage && activeImageId) {
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === activeImageId
+            ? {
+                ...img,
+                x: x - img.width / 2,
+                y: y - img.height / 2,
+              }
+            : img,
+        ),
+      );
+      socket.emit("move_image_object", {
+        roomCode,
+        id: activeImageId,
+        x: x - images.find((img) => img.id === activeImageId)?.width / 2,
+        y: y - images.find((img) => img.id === activeImageId)?.height / 2,
+      });
+      return; // stop here — don't draw
+    }
+
+    // ❌ If not drawing → stop
+    if (!isDrawing || !canDraw) return;
 
     const currentColor = isErasing ? "#ffffff" : color;
     const currentWidth = isErasing ? 20 : lineWidth;
@@ -181,7 +316,12 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     if (smartMode) {
       const previewCtx = previewRef.current.getContext("2d");
 
-      previewCtx.clearRect(0, 0, 600, 400);
+      previewCtx.clearRect(
+        0,
+        0,
+        previewRef.current.width,
+        previewRef.current.height,
+      );
 
       previewCtx.strokeStyle = currentColor;
       previewCtx.lineWidth = currentWidth;
@@ -196,10 +336,19 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
 
       socket.emit("draw", {
         roomCode,
-        x,
-        y,
-        prevX: prevPos.x,
-        prevY: prevPos.y,
+        x: x / rect.width,
+        y: y / rect.height,
+        prevX: prevPos.x / rect.width,
+        prevY: prevPos.y / rect.height,
+        color: currentColor,
+        lineWidth: currentWidth,
+      });
+
+      permanentStrokes.current.push({
+        x: x / rect.width,
+        y: y / rect.height,
+        prevX: prevPos.x / rect.width,
+        prevY: prevPos.y / rect.height,
         color: currentColor,
         lineWidth: currentWidth,
       });
@@ -208,8 +357,87 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     setPrevPos({ x, y });
   };
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onload = () => {
+        const canvas = canvasRef.current;
+
+        const maxWidth = 300; // maximum display width
+        const scale = maxWidth / img.width;
+
+        const newImage = {
+          id: crypto.randomUUID(),
+          src: reader.result,
+          x: canvas.width / 2 - (img.width * scale) / 2,
+          y: canvas.height / 2 - (img.height * scale) / 2,
+          width: img.width * scale,
+          height: img.height * scale,
+        };
+
+        setImages((prev) => [...prev, newImage]);
+
+        socket.emit("add_image_object", {
+          roomCode,
+          image: newImage,
+        });
+      };
+
+      img.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const redrawCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw images
+    images.forEach((img) => {
+      const image = new Image();
+      image.src = img.src;
+
+      ctx.drawImage(image, img.x, img.y, img.width, img.height);
+    });
+
+    // Draw strokes
+    permanentStrokes.current.forEach((stroke) => {
+      drawLine(
+        stroke.prevX * canvas.width,
+        stroke.prevY * canvas.height,
+        stroke.x * canvas.width,
+        stroke.y * canvas.height,
+        stroke.color,
+        stroke.lineWidth,
+      );
+    });
+
+    // Draw text
+    texts.forEach((t) => {
+      ctx.fillStyle = t.color;
+      ctx.font = "20px Arial";
+      ctx.fillText(t.text, t.x, t.y);
+    });
+  };
+
+  useEffect(() => {
+    redrawCanvas();
+  }, [images, texts]);
+
   const handleMouseUp = async () => {
+    setIsDraggingImage(false);
+    setActiveImageId(null);
     setIsDrawing(false);
+    setIsResizing(false);
 
     console.log("smartMode:", smartMode);
     console.log("points:", strokePoints.current.length);
@@ -244,81 +472,170 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   };
 
   return (
-    <div style={{ marginTop: "20px" }}>
-      <h3>Whiteboard</h3>
-      {isHost && (
-        <button
-          onClick={() => socket.emit("clear_board", { roomCode })}
-          style={{ marginBottom: "10px" }}
-        >
-          Clear Board
-        </button>
-      )}
-      {canDraw && (
-        <div style={{ marginBottom: "10px" }}>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-          />
-
-          <select
-            value={lineWidth}
-            onChange={(e) => setLineWidth(Number(e.target.value))}
-            style={{ marginLeft: "10px" }}
-          >
-            <option value={2}>Thin</option>
-            <option value={5}>Medium</option>
-            <option value={10}>Thick</option>
-          </select>
-
-          <button
-            onClick={() => setIsErasing(!isErasing)}
-            style={{ marginLeft: "10px" }}
-          >
-            {isErasing ? "Stop Eraser" : "Eraser"}
-          </button>
-
-          <button
-            onClick={() => setSmartMode(!smartMode)}
-            style={{ marginLeft: "10px" }}
-          >
-            Smart Mode: {smartMode ? "ON" : "OFF"}
-          </button>
-        </div>
-      )}
-
-      <div style={{ position: "relative", width: 600, height: 400 }}>
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={400}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            border: "1px solid black",
-            background: "white",
-            zIndex: 1,
-          }}
-        />
+    <div className="whiteboard-wrapper">
+      {/* Canvas Container */}
+      <div className="canvas-container">
+        <canvas ref={canvasRef} className="canvas-base" />
 
         <canvas
           ref={previewRef}
-          width={600}
-          height={400}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            zIndex: 2,
-          }}
+          className="canvas-preview"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onContextMenu={(e) => {
+            e.preventDefault();
+
+            const rect = canvasRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const imageToDelete = images.find(
+              (img) =>
+                x >= img.x &&
+                x <= img.x + img.width &&
+                y >= img.y &&
+                y <= img.y + img.height,
+            );
+
+            if (imageToDelete) {
+              setImages((prev) =>
+                prev.filter((img) => img.id !== imageToDelete.id),
+              );
+
+              socket.emit("delete_image_object", {
+                roomCode,
+                id: imageToDelete.id,
+              });
+            }
+          }}
         />
+
+        {textPosition && textMode && (
+          <div
+            style={{
+              position: "absolute",
+              left: textPosition.x,
+              top: textPosition.y,
+              background: "white",
+              padding: "5px",
+              border: "1px solid gray",
+            }}
+          >
+            <textarea
+              style={{
+                color: "black",
+                background: "white",
+                border: "none",
+                outline: "none",
+                resize: "none",
+              }}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+
+                  const newText = {
+                    text: textInput,
+                    x: textPosition.x,
+                    y: textPosition.y,
+                    color,
+                  };
+
+                  setTexts((prev) => [...prev, newText]);
+                  socket.emit("add_text", { roomCode, ...newText });
+
+                  setTextInput("");
+                  setTextPosition(null);
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Floating Toolbar */}
+      {canDraw && (
+        <div className="wb-toolbar">
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            id="imageUpload"
+            onChange={handleImageUpload}
+          />
+
+          <button
+            className={`wb-btn ${textMode ? "active" : ""}`}
+            onClick={() => setTextMode(!textMode)}
+          >
+            T
+          </button>
+
+          <button
+            className="wb-btn"
+            onClick={() => document.getElementById("imageUpload").click()}
+          >
+            🖼
+          </button>
+          {/* Color Picker */}
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="wb-color"
+          />
+
+          {/* Thickness */}
+          <div className="wb-thickness">
+            <button
+              className={lineWidth === 2 ? "active" : ""}
+              onClick={() => setLineWidth(2)}
+            >
+              •
+            </button>
+
+            <button
+              className={lineWidth === 5 ? "active" : ""}
+              onClick={() => setLineWidth(5)}
+            >
+              ••
+            </button>
+
+            <button
+              className={lineWidth === 10 ? "active" : ""}
+              onClick={() => setLineWidth(10)}
+            >
+              •••
+            </button>
+          </div>
+
+          {/* Eraser */}
+          <button
+            className={`wb-btn ${isErasing ? "active" : ""}`}
+            onClick={() => setIsErasing(!isErasing)}
+          >
+            🧽
+          </button>
+
+          {/* Smart Mode */}
+          <div
+            className={`wb-toggle ${smartMode ? "active" : ""}`}
+            onClick={() => setSmartMode(!smartMode)}
+          >
+            Smart
+          </div>
+
+          {/* Clear (Host Only) */}
+          <button
+            className="wb-btn danger"
+            onClick={() => socket.emit("clear_board", { roomCode })}
+          >
+            🗑
+          </button>
+        </div>
+      )}
     </div>
   );
 };
