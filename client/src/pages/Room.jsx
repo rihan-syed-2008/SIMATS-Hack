@@ -188,9 +188,14 @@ const Room = () => {
 
     peer.ontrack = (event) => {
       console.log("Remote track received");
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-      }
+
+      const audio = document.createElement("audio");
+      audio.srcObject = event.streams[0];
+      audio.autoplay = true;
+      audio.playsInline = true;
+      audio.controls = true; // TEMPORARY for debugging
+
+      document.body.appendChild(audio);
     };
 
     if (isInitiator) {
