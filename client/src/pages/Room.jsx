@@ -147,7 +147,7 @@ const Room = () => {
           audio: true,
         });
         setLocalStream(stream);
-        socket.emit("user_joined", {
+        socket.emit("join_room", {
           roomCode: code,
           userId: localStorage.getItem("userId"),
         });

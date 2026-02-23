@@ -76,22 +76,6 @@ io.on("connection", (socket) => {
     console.log("Room deleted:", roomCode);
   });
 
-  socket.on("user_joined", ({ roomCode, userId }) => {
-    socket.userId = userId; // ✅ ADD THIS LINE
-
-    socket.join(roomCode);
-
-    const clients = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
-
-    const existingUsers = clients
-      .filter((id) => id !== socket.id)
-      .map((id) => io.sockets.sockets.get(id).userId);
-
-    socket.emit("existing_users", existingUsers);
-
-    socket.to(roomCode).emit("new_user", { userId });
-  });
-
   socket.on("webrtc_offer", ({ offer, to }) => {
     for (const [id, s] of io.sockets.sockets) {
       if (s.userId === to) {
@@ -285,6 +269,18 @@ io.on("connection", (socket) => {
         newHostId: room.host.toString(),
       });
     }
+    // 🔥 WEBRTC SIGNALING START
+    const clients = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
+
+    const existingUsers = clients
+      .filter((id) => id !== socket.id)
+      .map((id) => io.sockets.sockets.get(id).userId);
+
+    socket.emit("existing_users", existingUsers);
+
+    socket.to(roomCode).emit("new_user", {
+      userId: socket.userId,
+    });
 
     console.log(`${username} joined room ${roomCode}`);
   });
