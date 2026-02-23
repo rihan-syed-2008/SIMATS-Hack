@@ -142,6 +142,7 @@ const Room = () => {
   useEffect(() => {
     const initMic = async () => {
       try {
+        console.log("Mic initialized");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
         });
@@ -159,6 +160,7 @@ const Room = () => {
   }, []);
 
   const createPeerConnection = async (remoteUserId, isInitiator) => {
+    console.log("Creating peer for:", remoteUserId);
     if (peersRef.current[remoteUserId]) {
       return peersRef.current[remoteUserId]; // 🔥 prevent duplicate
     }
@@ -185,6 +187,7 @@ const Room = () => {
     };
 
     peer.ontrack = (event) => {
+      console.log("Remote track received");
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
       }
@@ -193,6 +196,7 @@ const Room = () => {
     if (isInitiator) {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
+      console.log("Offer sent to:", remoteUserId);
 
       socket.emit("webrtc_offer", {
         offer,
@@ -208,6 +212,7 @@ const Room = () => {
 
     // WebRTC socket events
     socket.on("existing_users", async (users) => {
+      console.log("Existing users:", users);
       if (!localStream) return;
 
       users.forEach((remoteUserId) => {
@@ -220,6 +225,7 @@ const Room = () => {
     });
 
     socket.on("webrtc_offer", async ({ offer, from }) => {
+      console.log("Offer received from:", from);
       let peer = peersRef.current[from];
 
       if (!peer) {
@@ -241,6 +247,7 @@ const Room = () => {
     });
 
     socket.on("webrtc_answer", async ({ answer, from }) => {
+      console.log("Answer received from:", from);
       const peer = peersRef.current[from];
       if (!peer) return;
 
@@ -251,6 +258,7 @@ const Room = () => {
     });
 
     socket.on("webrtc_ice", async ({ candidate, from }) => {
+      console.log("ICE candidate from:", from);
       const peer = peersRef.current[from];
       if (peer) {
         await peer.addIceCandidate(new RTCIceCandidate(candidate));
