@@ -29,6 +29,9 @@ const Room = () => {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
+  const [activeQuiz, setActiveQuiz] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+
   const remoteAudioRef = useRef(null);
 
   const timerRef = useRef(null);
@@ -58,6 +61,9 @@ const Room = () => {
   // Join room when component loads
   useEffect(() => {
     const username = localStorage.getItem("username");
+
+    socket.on("quiz_started", setActiveQuiz);
+    socket.on("leaderboard_update", setLeaderboard);
 
     socket.on("room_ended", () => {
       setNotification("Meeting ended by host");
@@ -386,13 +392,17 @@ const Room = () => {
       <div className="room-main">
         {/* WHITEBOARD */}
         <div className="whiteboard-container">
-          <Whiteboard
-            socket={socket}
-            roomCode={code}
-            isHost={isHost}
-            allowedUsers={allowedUsers}
-            userId={localStorage.getItem("userId")}
-          />
+          {activeQuiz ? (
+            <Quiz roomCode={code} socket={socket} />
+          ) : (
+            <Whiteboard
+              socket={socket}
+              roomCode={code}
+              isHost={isHost}
+              allowedUsers={allowedUsers}
+              userId={localStorage.getItem("userId")}
+            />
+          )}
         </div>
         <audio ref={remoteAudioRef} autoPlay />
 
@@ -429,6 +439,14 @@ const Room = () => {
       {/* BOTTOM NAV */}
       <div className="bottom-nav">
         {/* Participants */}
+        {isHost && (
+          <button
+            className="nav-btn"
+            onClick={() => navigate(`/quiz-room/${code}`)}
+          >
+            📝 Quiz
+          </button>
+        )}
         <button
           className="nav-btn"
           onClick={() => {
@@ -533,6 +551,17 @@ const Room = () => {
           </button>
         )}
       </div>
+
+      {leaderboard.length > 0 && (
+        <div className="leaderboard">
+          <h3>Leaderboard</h3>
+          {leaderboard.map((player, index) => (
+            <div key={index}>
+              {index + 1}. {player.username} - {player.score}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* PARTICIPANTS DRAWER */}
       {showParticipants && (

@@ -17,6 +17,11 @@ const Room = require("./src/models/Room");
 const roomRoutes = require("./src/routes/roomRoutes");
 
 const aiRoutes = require("./src/routes/aiRoutes");
+const roomQuizzes = {};
+const roomLeaderboard = {};
+
+const Groq = require("groq-sdk");
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 app.use("/api/rooms", roomRoutes);
 
 app.use("/api/users", userRoutes);
@@ -76,6 +81,55 @@ io.on("connection", (socket) => {
     console.log("Room deleted:", roomCode);
   });
 
+  socket.on("generate_room_quiz", async ({ roomCode, topic }) => {
+    const prompt = `
+Generate 5 multiple choice questions about "${topic}".
+Return ONLY JSON.
+  `;
+
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "llama-3.3-70b-versatile",
+    });
+
+    const raw = completion.choices[0].message.content;
+    const jsonStart = raw.indexOf("[");
+    const jsonEnd = raw.lastIndexOf("]") + 1;
+    const quiz = JSON.parse(raw.slice(jsonStart, jsonEnd));
+
+    roomQuizzes[roomCode] = quiz;
+    roomLeaderboard[roomCode] = {};
+
+    io.to(roomCode).emit("quiz_started", quiz);
+  });
+
+  socket.on("submit_quiz", ({ roomCode, answers }) => {
+    const quiz = roomQuizzes[roomCode];
+    if (!quiz) return;
+
+    let score = 0;
+
+    quiz.forEach((q, i) => {
+      if (answers[i] === q.correctAnswer) {
+        score++;
+      }
+    });
+
+    if (!roomLeaderboard[roomCode]) {
+      roomLeaderboard[roomCode] = {};
+    }
+
+    roomLeaderboard[roomCode][socket.userId] = {
+      username: socket.username,
+      score,
+    };
+
+    const sorted = Object.values(roomLeaderboard[roomCode]).sort(
+      (a, b) => b.score - a.score,
+    );
+
+    io.to(roomCode).emit("leaderboard_update", sorted);
+  });
   socket.on("webrtc_offer", ({ offer, to }) => {
     for (const [id, s] of io.sockets.sockets) {
       if (s.userId === to) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./AI.css";
 import { jsPDF } from "jspdf";
 
-function Quiz() {
+function Quiz({ roomCode = null, socket = null }) {
   const [topic, setTopic] = useState("");
   const [questions, setQuestions] = useState([]);
   const [selectedAnswers, setSelectedAnswers] = useState({});
@@ -13,6 +13,22 @@ function Quiz() {
   const [currentContextId, setCurrentContextId] = useState(null);
   const [questionCount, setQuestionCount] = useState("");
   const [questionType, setQuestionType] = useState("mixed");
+
+  const isRoomMode = !!roomCode;
+
+  useEffect(() => {
+    if (!isRoomMode || !socket) return;
+
+    socket.on("quiz_started", (quiz) => {
+      setQuestions(quiz);
+      setScore(null);
+      setSelectedAnswers({});
+    });
+
+    return () => {
+      socket.off("quiz_started");
+    };
+  }, [isRoomMode, socket]);
 
   const downloadQuizReport = () => {
     const doc = new jsPDF();
@@ -108,12 +124,23 @@ function Quiz() {
     });
   };
 
-  const calculateScore = () => {
+  const submitQuiz = () => {
+    if (isRoomMode && socket) {
+      const answerArray = questions.map((_, i) => selectedAnswers[i] || null);
+
+      socket.emit("submit_quiz", {
+        roomCode,
+        answers: answerArray,
+      });
+
+      return;
+    }
+
+    // 🔥 Normal standalone mode scoring
     let correct = 0;
 
     questions.forEach((q, index) => {
       const userAnswer = selectedAnswers[index];
-
       if (!userAnswer) return;
 
       if (
@@ -157,13 +184,15 @@ function Quiz() {
             <option value="fill">Fill in the blanks</option>
           </select>
 
-          <button
-            onClick={generateQuiz}
-            disabled={loading}
-            className="btn-primary"
-          >
-            {loading ? "Generating..." : "Generate"}
-          </button>
+          {!isRoomMode && (
+            <button
+              onClick={generateQuiz}
+              disabled={loading}
+              className="btn-primary"
+            >
+              {loading ? "Generating..." : "Generate"}
+            </button>
+          )}
         </div>
 
         {questions.length > 0 && (
@@ -289,7 +318,7 @@ function Quiz() {
 
             {score === null && (
               <button
-                onClick={calculateScore}
+                onClick={submitQuiz}
                 className="btn-primary submit-btn"
               >
                 Submit Quiz
