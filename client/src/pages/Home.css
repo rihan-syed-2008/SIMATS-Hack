@@ -280,3 +280,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 768px) {
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+}

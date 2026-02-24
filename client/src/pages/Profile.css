@@ -89,3 +89,9 @@
   color: white;
   cursor: pointer;
 }
+
+@media (max-width: 768px) {
+  .profile-card {
+    padding: 25px;
+  }
+}
