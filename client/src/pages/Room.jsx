@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
@@ -39,6 +39,22 @@ const Room = () => {
 
   const navigate = useNavigate();
 
+  const cleanupWebRTC = useCallback(() => {
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+    }
+
+    Object.values(peersRef.current).forEach((peer) => {
+      peer.close();
+    });
+
+    peersRef.current = {};
+  }, [localStream]);
+  useEffect(() => {
+    return () => {
+      cleanupWebRTC();
+    };
+  }, [cleanupWebRTC]);
   // Join room when component loads
   useEffect(() => {
     const username = localStorage.getItem("username");
@@ -48,6 +64,7 @@ const Room = () => {
 
       setTimeout(() => {
         setNotification(null);
+        cleanupWebRTC();
         navigate("/home");
       }, 2500); // 2.5 sec
     });
@@ -147,10 +164,6 @@ const Room = () => {
           audio: true,
         });
         setLocalStream(stream);
-        socket.emit("join_room", {
-          roomCode: code,
-          userId: localStorage.getItem("userId"),
-        });
       } catch (err) {
         console.error("Mic permission denied", err);
       }
@@ -158,6 +171,18 @@ const Room = () => {
 
     initMic();
   }, []);
+
+  useEffect(() => {
+    if (!localStream) return;
+
+    const username = localStorage.getItem("username");
+
+    socket.emit("join_room", {
+      roomCode: code,
+      username,
+      userId: localStorage.getItem("userId"),
+    });
+  }, [localStream, code]);
 
   const createPeerConnection = async (remoteUserId, isInitiator) => {
     console.log("Creating peer for:", remoteUserId);
@@ -329,8 +354,9 @@ const Room = () => {
   };
 
   const leaveRoom = () => {
+    cleanupWebRTC();
     socket.emit("leave_room", { roomCode: code });
-    navigate("/dashboard", { replace: true });
+    navigate("/home", { replace: true });
   };
 
   const handleKeyDown = (e) => {
