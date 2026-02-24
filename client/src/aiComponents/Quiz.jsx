@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./AI.css";
 import { jsPDF } from "jspdf";
 
-function Quiz({ roomCode = null, socket = null }) {
+function Quiz({
+  mode = "live",
+  quiz = null,
+  roomCode,
+  socket,
+  isHost = false,
+  onEndQuiz = null,
+}) {
   const [topic, setTopic] = useState("");
   const [questions, setQuestions] = useState([]);
   const [selectedAnswers, setSelectedAnswers] = useState({});
@@ -17,18 +24,12 @@ function Quiz({ roomCode = null, socket = null }) {
   const isRoomMode = !!roomCode;
 
   useEffect(() => {
-    if (!isRoomMode || !socket) return;
-
-    socket.on("quiz_started", (quiz) => {
+    if (quiz && roomCode) {
+      console.log("Questions received:", quiz);
+      console.log("First question type:", quiz[0]?.type);
       setQuestions(quiz);
-      setScore(null);
-      setSelectedAnswers({});
-    });
-
-    return () => {
-      socket.off("quiz_started");
-    };
-  }, [isRoomMode, socket]);
+    }
+  }, [quiz, roomCode]);
 
   const downloadQuizReport = () => {
     const doc = new jsPDF();
@@ -78,6 +79,20 @@ function Quiz({ roomCode = null, socket = null }) {
   const generateQuiz = async () => {
     if (!topic.trim()) return;
 
+    // 🔥 ROOM MODE (Host Setup Phase)
+    if (mode === "setup" && socket) {
+      socket.emit("generate_room_quiz", {
+        roomCode,
+        topic,
+        questionCount: questionCount || 5,
+        questionType,
+      });
+
+      return;
+    }
+    console.log("Questions received:", questions);
+
+    // 🔥 NORMAL STANDALONE MODE
     setLoading(true);
     setQuestions([]);
     setScore(null);
@@ -93,8 +108,7 @@ function Quiz({ roomCode = null, socket = null }) {
           },
           body: JSON.stringify({
             topic,
-            userId: currentUserId,
-            roomId: null,
+            userId: currentUserId, // ✅ USE IT HERE
             contextId: currentContextId,
             questionCount: questionCount || 10,
             questionType,
@@ -103,10 +117,8 @@ function Quiz({ roomCode = null, socket = null }) {
       );
 
       const data = await res.json();
-
       setQuestions(data.questions);
 
-      // Save contextId first time
       if (!currentContextId) {
         setCurrentContextId(data.contextId);
       }
@@ -158,33 +170,32 @@ function Quiz({ roomCode = null, socket = null }) {
     <div className="ai-wrapper">
       <div className="ai-card">
         <h2 className="ai-title">AI Quiz Generator</h2>
+        {(!roomCode || mode === "setup") && (
+          <div className="ai-input-group">
+            <input
+              type="text"
+              placeholder="Enter topic..."
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+            />
 
-        <div className="ai-input-group">
-          <input
-            type="text"
-            placeholder="Enter topic..."
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-          />
+            <input
+              type="number"
+              placeholder="Number of questions (default 10)"
+              value={questionCount}
+              onChange={(e) => setQuestionCount(e.target.value)}
+            />
 
-          <input
-            type="number"
-            placeholder="Number of questions (default 10)"
-            value={questionCount}
-            onChange={(e) => setQuestionCount(e.target.value)}
-          />
+            <select
+              value={questionType}
+              onChange={(e) => setQuestionType(e.target.value)}
+            >
+              <option value="mixed">Mixed</option>
+              <option value="mcq">Multiple Choice</option>
+              <option value="truefalse">True / False</option>
+              <option value="fill">Fill in the blanks</option>
+            </select>
 
-          <select
-            value={questionType}
-            onChange={(e) => setQuestionType(e.target.value)}
-          >
-            <option value="mixed">Mixed</option>
-            <option value="mcq">Multiple Choice</option>
-            <option value="truefalse">True / False</option>
-            <option value="fill">Fill in the blanks</option>
-          </select>
-
-          {!isRoomMode && (
             <button
               onClick={generateQuiz}
               disabled={loading}
@@ -192,8 +203,8 @@ function Quiz({ roomCode = null, socket = null }) {
             >
               {loading ? "Generating..." : "Generate"}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {questions.length > 0 && (
           <div className="ai-questions">
@@ -212,7 +223,7 @@ function Quiz({ roomCode = null, socket = null }) {
                   </h4>
 
                   {/* MCQ */}
-                  {q.type === "mcq" && q.options && (
+                  {q.options?.length > 0 && (
                     <div className="options">
                       {q.options.map((option, i) => {
                         const isSelected = userAnswer === option;
@@ -235,6 +246,7 @@ function Quiz({ roomCode = null, socket = null }) {
                             <input
                               type="radio"
                               name={`question-${index}`}
+                              checked={userAnswer === option}
                               disabled={score !== null}
                               onChange={() => handleOptionSelect(index, option)}
                             />
@@ -269,6 +281,7 @@ function Quiz({ roomCode = null, socket = null }) {
                             <input
                               type="radio"
                               name={`question-${index}`}
+                              checked={userAnswer === option}
                               disabled={score !== null}
                               onChange={() => handleOptionSelect(index, option)}
                             />
@@ -317,14 +330,15 @@ function Quiz({ roomCode = null, socket = null }) {
             })}
 
             {score === null && (
-              <button
-                onClick={submitQuiz}
-                className="btn-primary submit-btn"
-              >
+              <button onClick={submitQuiz} className="btn-primary submit-btn">
                 Submit Quiz
               </button>
             )}
-
+            {isHost && mode === "live" && (
+              <button className="btn-danger" onClick={onEndQuiz}>
+                End Quiz
+              </button>
+            )}
             {score !== null && (
               <div className="score-display">
                 <p>

@@ -81,27 +81,31 @@ io.on("connection", (socket) => {
     console.log("Room deleted:", roomCode);
   });
 
-  socket.on("generate_room_quiz", async ({ roomCode, topic }) => {
-    const prompt = `
-Generate 5 multiple choice questions about "${topic}".
-Return ONLY JSON.
-  `;
+  socket.on("end_quiz", ({ roomCode }) => {
+    console.log("END QUIZ RECEIVED for room:", roomCode);
+    delete roomQuizzes[roomCode];
+    delete roomLeaderboard[roomCode];
 
-    const completion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile",
-    });
-
-    const raw = completion.choices[0].message.content;
-    const jsonStart = raw.indexOf("[");
-    const jsonEnd = raw.lastIndexOf("]") + 1;
-    const quiz = JSON.parse(raw.slice(jsonStart, jsonEnd));
-
-    roomQuizzes[roomCode] = quiz;
-    roomLeaderboard[roomCode] = {};
-
-    io.to(roomCode).emit("quiz_started", quiz);
+    io.to(roomCode).emit("quiz_ended");
   });
+
+  socket.on(
+    "generate_room_quiz",
+    async ({ roomCode, topic, questionCount, questionType }) => {
+      const prompt = ` Generate ${questionCount} ${questionType} questions about "${topic}". Return ONLY valid JSON array in this EXACT format: [ { "question": "string", "type": "mcq" | "truefalse" | "fill", "options": ["option1","option2","option3","option4"], "correctAnswer": "string" } ] Rules: - For truefalse → options must be ["True","False"] - For fill → options must be [] - Do NOT include explanation. - Do NOT include text outside JSON. `;
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+      });
+      const raw = completion.choices[0].message.content;
+      const jsonStart = raw.indexOf("[");
+      const jsonEnd = raw.lastIndexOf("]") + 1;
+      const quiz = JSON.parse(raw.slice(jsonStart, jsonEnd));
+      roomQuizzes[roomCode] = quiz;
+      roomLeaderboard[roomCode] = {};
+      io.to(roomCode).emit("quiz_started", quiz);
+    },
+  );
 
   socket.on("submit_quiz", ({ roomCode, answers }) => {
     const quiz = roomQuizzes[roomCode];
@@ -110,10 +114,18 @@ Return ONLY JSON.
     let score = 0;
 
     quiz.forEach((q, i) => {
-      if (answers[i] === q.correctAnswer) {
-        score++;
-      }
+      const correct =
+        answers[i]?.toString().trim().toLowerCase() ===
+        q.correctAnswer?.toString().trim().toLowerCase();
+
+      if (correct) score++;
     });
+
+    console.log("User answers:", answers);
+    console.log(
+      "Correct answers:",
+      quiz.map((q) => q.correctAnswer),
+    );
 
     if (!roomLeaderboard[roomCode]) {
       roomLeaderboard[roomCode] = {};

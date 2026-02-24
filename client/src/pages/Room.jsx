@@ -6,6 +6,7 @@ import { useRef } from "react";
 import "./Room.css";
 //import {FaUsers, FaPlay, FaPause, FaStop, FaSignOutAlt} from react-icons/fa;
 import Whiteboard from "../components/Whiteboard";
+import Quiz from "../aiComponents/Quiz";
 
 const socket = io(import.meta.env.VITE_API_URL);
 
@@ -31,6 +32,8 @@ const Room = () => {
 
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+
+  const [quizPhase, setQuizPhase] = useState(null);
 
   const remoteAudioRef = useRef(null);
 
@@ -62,8 +65,20 @@ const Room = () => {
   useEffect(() => {
     const username = localStorage.getItem("username");
 
-    socket.on("quiz_started", setActiveQuiz);
-    socket.on("leaderboard_update", setLeaderboard);
+    socket.on("quiz_ended", () => {
+      setQuizPhase(null);
+      setActiveQuiz(null);
+      setLeaderboard([]);
+    });
+
+    socket.on("quiz_started", (quiz) => {
+      console.log("Quiz received : ", quiz);
+      setActiveQuiz(quiz);
+      setQuizPhase("live");
+    });
+    socket.on("leaderboard_update", (data) => {
+      setLeaderboard(data);
+    });
 
     socket.on("room_ended", () => {
       setNotification("Meeting ended by host");
@@ -392,9 +407,22 @@ const Room = () => {
       <div className="room-main">
         {/* WHITEBOARD */}
         <div className="whiteboard-container">
-          {activeQuiz ? (
-            <Quiz roomCode={code} socket={socket} />
-          ) : (
+          {quizPhase === "setup" && isHost && (
+            <Quiz mode="setup" roomCode={code} socket={socket} />
+          )}
+
+          {quizPhase === "live" && (
+            <Quiz
+              mode="live"
+              quiz={activeQuiz}
+              roomCode={code}
+              socket={socket}
+              isHost={isHost}
+              onEndQuiz={() => socket.emit("end_quiz", { roomCode: code })}
+            />
+          )}
+
+          {!quizPhase && (
             <Whiteboard
               socket={socket}
               roomCode={code}
@@ -442,7 +470,9 @@ const Room = () => {
         {isHost && (
           <button
             className="nav-btn"
-            onClick={() => navigate(`/quiz-room/${code}`)}
+            onClick={() => {
+              setQuizPhase("setup");
+            }}
           >
             📝 Quiz
           </button>
