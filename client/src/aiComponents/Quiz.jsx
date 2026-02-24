@@ -171,39 +171,47 @@ function Quiz({
       <div className="ai-card">
         <h2 className="ai-title">AI Quiz Generator</h2>
         {(!roomCode || mode === "setup") && (
-          <div className="ai-input-group">
-            <input
-              type="text"
-              placeholder="Enter topic..."
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
+          <>
+            <div className="quiz-setup-header">
+              <h3>Create Your Quiz</h3>
+              <p>Choose topic, number of questions and question type</p>
+              <div className="quiz-divider"></div>
+            </div>
 
-            <input
-              type="number"
-              placeholder="Number of questions (default 10)"
-              value={questionCount}
-              onChange={(e) => setQuestionCount(e.target.value)}
-            />
+            <div className="ai-input-group">
+              <input
+                type="text"
+                placeholder="Enter topic..."
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
 
-            <select
-              value={questionType}
-              onChange={(e) => setQuestionType(e.target.value)}
-            >
-              <option value="mixed">Mixed</option>
-              <option value="mcq">Multiple Choice</option>
-              <option value="truefalse">True / False</option>
-              <option value="fill">Fill in the blanks</option>
-            </select>
+              <input
+                type="number"
+                placeholder="Number of questions (default 10)"
+                value={questionCount}
+                onChange={(e) => setQuestionCount(e.target.value)}
+              />
 
-            <button
-              onClick={generateQuiz}
-              disabled={loading}
-              className="btn-primary"
-            >
-              {loading ? "Generating..." : "Generate"}
-            </button>
-          </div>
+              <select
+                value={questionType}
+                onChange={(e) => setQuestionType(e.target.value)}
+              >
+                <option value="mixed">Mixed</option>
+                <option value="mcq">Multiple Choice</option>
+                <option value="truefalse">True / False</option>
+                <option value="fill">Fill in the blanks</option>
+              </select>
+
+              <button
+                onClick={generateQuiz}
+                disabled={loading}
+                className="btn-primary"
+              >
+                {loading ? "Generating..." : "Generate"}
+              </button>
+            </div>
+          </>
         )}
 
         {questions.length > 0 && (

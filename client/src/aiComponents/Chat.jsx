@@ -122,7 +122,9 @@ function Chat() {
             <div
               key={chat.contextId}
               onClick={() => setCurrentContextId(chat.contextId)}
-              className="conversation-item"
+              className={`conversation-item ${
+                currentContextId === chat.contextId ? "active" : ""
+              }`}
             >
               {chat.contextId.replace(/_/g, " ")}
             </div>

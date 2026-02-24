@@ -104,3 +104,27 @@
   border-radius: 16px;
   background: rgba(24, 50, 154, 0.08);
 }
+
+.friends-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.friends-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: white;
+}
+
+.friends-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.friends-divider {
+  width: 140px;
+  height: 2px;
+  margin: 20px auto 0;
+  background: linear-gradient(90deg, transparent, #58f3da, transparent);
+}

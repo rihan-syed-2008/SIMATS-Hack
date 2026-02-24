@@ -123,6 +123,7 @@ function Flashcards() {
 
         {cards.length > 0 && (
           <>
+            <p className="flashcard-hint">Tap the card to reveal the answer</p>
             <div className="flashcard-container">
               <div
                 className={`flashcard ${flipped ? "flipped" : ""}`}
@@ -135,19 +136,26 @@ function Flashcards() {
                   {cards[currentIndex].answer}
                 </div>
               </div>
-              <div style={{ marginTop: "20px", textAlign: "center" }}>
-                <button onClick={downloadFlashcards} className="btn-primary">
-                  Download Flashcards
-                </button>
-              </div>
             </div>
 
             <div className="flashcard-controls">
-              <button onClick={prevCard}>Prev</button>
+              <button onClick={prevCard} disabled={currentIndex === 0}>
+                Prev
+              </button>
               <span>
                 {currentIndex + 1} / {cards.length}
               </span>
-              <button onClick={nextCard}>Next</button>
+              <button
+                onClick={nextCard}
+                disabled={currentIndex === cards.length - 1}
+              >
+                Next
+              </button>
+            </div>
+            <div className="flashcard-download">
+              <button onClick={downloadFlashcards} className="btn-primary">
+                Download Flashcards
+              </button>
             </div>
           </>
         )}

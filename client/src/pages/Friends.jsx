@@ -51,8 +51,9 @@ const Friends = () => {
   return (
     <div className="friends-wrapper">
       <div className="friends-header">
-        <h2>Friends</h2>
-        <p>Manage your study connections</p>
+        <h1 className="friends-title">Friends</h1>
+        <p className="friends-subtitle">Manage your study connections</p>
+        <div className="friends-divider"></div>
       </div>
 
       <div className="add-friend-card">

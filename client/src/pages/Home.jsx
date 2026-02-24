@@ -50,18 +50,29 @@ const Home = () => {
         </div>
       </div>
 
-      <div className="action-card" onClick={() => navigate("/ai/quiz")}>
-        <h3>🤖 AI Quiz</h3>
-        <p>Generate instant quizzes for any topic.</p>
-      </div>
-      <div className="action-card" onClick={() => navigate("/ai/flashcards")}>
-        <h3>🤖 AI Flashcards</h3>
-        <p>Generate instant flashcards for any topic.</p>
-      </div>
+      {/* AI SECTION */}
+      <div className="ai-section">
+        <div className="ai-section-header">
+          <h2>Your AI Study Tools</h2>
+          <p>Enhance your focus with intelligent learning assistance</p>
+        </div>
 
-      <div className="action-card" onClick={() => navigate("/ai/chat")}>
-        <h3>🤖 AI Doubt Solver</h3>
-        <p>Ask doubts and get clarified with our VAI</p>
+        <div className="ai-grid">
+          <div className="ai-card" onClick={() => navigate("/ai/quiz")}>
+            <h3>AI Quiz Generator</h3>
+            <p>Generate instant quizzes for any topic.</p>
+          </div>
+
+          <div className="ai-card" onClick={() => navigate("/ai/flashcards")}>
+            <h3>AI Flashcards</h3>
+            <p>Generate smart revision flashcards instantly.</p>
+          </div>
+
+          <div className="ai-card" onClick={() => navigate("/ai/chat")}>
+            <h3>AI Doubt Solver</h3>
+            <p>Ask questions and get instant explanations.</p>
+          </div>
+        </div>
       </div>
 
       {/* CREATE ROOM MODAL */}
