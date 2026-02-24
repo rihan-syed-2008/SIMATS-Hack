@@ -29,6 +29,9 @@ const Room = () => {
   const [notification, setNotification] = useState(null);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
 
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -44,6 +47,68 @@ const Room = () => {
   const [isMicOn, setIsMicOn] = useState(true);
 
   const navigate = useNavigate();
+
+  const startRecording = async () => {
+    try {
+      // Get screen + system audio
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true, // system audio (if user allows)
+      });
+
+      // Get mic audio separately
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      // Merge audio tracks
+      const combinedStream = new MediaStream([
+        ...screenStream.getVideoTracks(),
+        ...screenStream.getAudioTracks(),
+        ...micStream.getAudioTracks(),
+      ]);
+
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: "video/webm",
+      });
+
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "video/webm",
+        });
+
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Room_${code}_Recording.webm`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Recording failed:", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const cleanupWebRTC = useCallback(() => {
     if (localStream) {
@@ -467,6 +532,14 @@ const Room = () => {
       {/* BOTTOM NAV */}
       <div className="bottom-nav">
         {/* Participants */}
+
+        <button
+          className="nav-btn"
+          onClick={isRecording ? stopRecording : startRecording}
+        >
+          {isRecording ? "⏹ Stop Rec" : "🎥 Record"}
+        </button>
+        {isRecording && <div className="recording-dot">● REC</div>}
         {isHost && (
           <button
             className="nav-btn"
