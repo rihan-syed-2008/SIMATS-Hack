@@ -67,6 +67,14 @@
   border-radius: 16px;
   padding: 10px;
   min-height: 500px;
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .whiteboard-container {
+    min-height: 60vh;
+    padding: 6px;
+  }
 }
 
 .chat-container {
@@ -98,14 +106,32 @@
 
 /* BOTTOM NAV */
 .bottom-nav {
-  height: 70px;
-  margin-top: 20px;
+  height: 60px;
+  margin-top: 15px;
   background: #0c1538;
   border-radius: 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 20px;
+  gap: 12px;
+  padding: 0 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bottom-nav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .nav-timer {
+    font-size: 14px;
+  }
 }
 
 .nav-btn {
@@ -133,13 +159,23 @@
 /* PARTICIPANTS */
 .participants-drawer {
   position: fixed;
-  bottom: 90px;
+  bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
   width: 400px;
+  max-width: 90%;
   background: #0f1b3d;
   border-radius: 16px;
   padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .participants-drawer {
+    width: 100%;
+    left: 0;
+    transform: none;
+    border-radius: 20px 20px 0 0;
+  }
 }
 
 .participant-actions {
@@ -213,4 +249,23 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .wb-toolbar {
+    width: 95%;
+    gap: 8px;
+    padding: 6px 10px;
+    overflow-x: auto;
+  }
+
+  .wb-btn {
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+
+  .wb-thickness button {
+    font-size: 14px;
+    padding: 2px 6px;
+  }
 }
