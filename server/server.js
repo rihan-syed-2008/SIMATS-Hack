@@ -177,22 +177,17 @@ io.on("connection", (socket) => {
 
   socket.on("transfer_host", async ({ roomCode, newHostId }) => {
     const room = await Room.findOne({ code: roomCode });
-    if (!room) return;
 
-    // Only current DB host can transfer
-    if (room.host.toString() !== socket.userId) return;
+    if (room && room.host.toString() === user.userId) {
+      const newHost = roomUsers[roomCode][0];
 
-    // Update DB
-    room.host = newHostId;
-    await room.save();
+      room.host = newHost.userId;
+      await room.save();
 
-    io.to(roomCode).emit("host_changed", {
-      newHostId,
-    });
-
-    io.to(roomCode).emit("system_message", {
-      message: `Host transferred`,
-    });
+      io.to(roomCode).emit("host_changed", {
+        newHostId: newHost.userId,
+      });
+    }
   });
 
   socket.on("typing", ({ roomCode, username }) => {

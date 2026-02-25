@@ -85,22 +85,48 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
       );
     });
 
-    socket.on("board_history", (strokes) => {
-      permanentStrokes.current = strokes;
-      const ctx = canvasRef.current.getContext("2d");
+    socket.on("add_text", (textObject) => {
+      setTexts((prev) => [...prev, textObject]);
+    });
 
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      const rect = canvasRef.current.getBoundingClientRect();
+    socket.on("add_image_object", (imageObject) => {
+      setImages((prev) => [...prev, imageObject]);
+    });
 
-      strokes.forEach((stroke) => {
-        drawLine(
-          stroke.prevX * rect.width,
-          stroke.prevY * rect.height,
-          stroke.x * rect.width,
-          stroke.y * rect.height,
-          stroke.color,
-          stroke.lineWidth,
-        );
+    socket.on("delete_image_object", (id) => {
+      setImages((prev) => prev.filter((img) => img.id !== id));
+    });
+
+    socket.on("board_history", (objects) => {
+      permanentStrokes.current = [];
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      const rect = canvas.getBoundingClientRect();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      objects.forEach((obj) => {
+        if (obj.type === "stroke") {
+          permanentStrokes.current.push(obj);
+
+          drawLine(
+            obj.prevX * rect.width,
+            obj.prevY * rect.height,
+            obj.x * rect.width,
+            obj.y * rect.height,
+            obj.color,
+            obj.lineWidth,
+          );
+        }
+
+        if (obj.type === "image") {
+          setImages((prev) => [...prev, obj]);
+        }
+
+        if (obj.type === "text") {
+          setTexts((prev) => [...prev, obj]);
+        }
       });
     });
 
@@ -131,6 +157,9 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
       socket.off("clear_board");
       socket.off("board_history");
       socket.off("move_image_object");
+      socket.off("add_text");
+      socket.off("add_image_object");
+      socket.off("delete_image_object");
     };
   }, [socket]);
 
