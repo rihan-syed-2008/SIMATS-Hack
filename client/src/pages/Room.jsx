@@ -33,6 +33,8 @@ const Room = () => {
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
 
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
 
@@ -130,19 +132,20 @@ const Room = () => {
   useEffect(() => {
     const username = localStorage.getItem("username");
 
-    socket.on("quiz_ended", () => {
-      setQuizPhase(null);
-      setActiveQuiz(null);
-      setLeaderboard([]);
-    });
-
     socket.on("quiz_started", (quiz) => {
-      console.log("Quiz received : ", quiz);
       setActiveQuiz(quiz);
       setQuizPhase("live");
+      setShowLeaderboard(false); // reset for new quiz
+      setLeaderboard([]);
     });
     socket.on("leaderboard_update", (data) => {
       setLeaderboard(data);
+    });
+
+    socket.on("quiz_ended", () => {
+      setQuizPhase(null);
+      setActiveQuiz(null);
+      setShowLeaderboard(true);
     });
 
     socket.on("room_ended", () => {
@@ -257,18 +260,6 @@ const Room = () => {
 
     initMic();
   }, []);
-
-  useEffect(() => {
-    if (!localStream) return;
-
-    const username = localStorage.getItem("username");
-
-    socket.emit("join_room", {
-      roomCode: code,
-      username,
-      userId: localStorage.getItem("userId"),
-    });
-  }, [localStream, code]);
 
   const createPeerConnection = async (remoteUserId, isInitiator) => {
     console.log("Creating peer for:", remoteUserId);
@@ -655,16 +646,36 @@ const Room = () => {
         )}
       </div>
 
-      {leaderboard.length > 0 && (
-        <div className="leaderboard">
-          <h3>Leaderboard</h3>
-          {leaderboard.map((player, index) => (
-            <div key={index}>
-              {index + 1}. {player.username} - {player.score}
-            </div>
-          ))}
-        </div>
-      )}
+      {showLeaderboard && leaderboard.length > 0 && (
+  <div className="leaderboard-overlay">
+    <div className="leaderboard-card">
+      <div className="leaderboard-header">
+        <span className="leaderboard-trophy">🏆</span>
+        <h3>Leaderboard</h3>
+        <button
+      className="leaderboard-close"
+      onClick={() => setShowLeaderboard(false)}
+    >
+      ✕
+    </button>
+      </div>
+      <div className="leaderboard-list">
+        {leaderboard.map((player, index) => (
+          <div
+            key={index}
+            className={`leaderboard-row ${index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : ""}`}
+          >
+            <span className="leaderboard-rank">
+              {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
+            </span>
+            <span className="leaderboard-name">{player.username}</span>
+            <span className="leaderboard-score">{player.score} pts</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
 
       {/* PARTICIPANTS DRAWER */}
       {showParticipants && (

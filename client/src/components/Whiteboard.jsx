@@ -18,11 +18,8 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
   const [texts, setTexts] = useState([]);
   const permanentStrokes = useRef([]);
   const previewRef = useRef(null);
-  const [isProcessingAI, setIsProcessingAI] = useState(false);
   const strokePoints = useRef([]);
   const canDraw = isHost || allowedUsers.includes(userId);
-
-  const [aiUsed, setAiUsed] = useState(false);
 
   const drawLine = (x1, y1, x2, y2, strokeColor, strokeWidth) => {
     const ctx = canvasRef.current.getContext("2d");
@@ -85,6 +82,11 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
       );
     });
 
+    socket.on("resize_image_object", ({ id, width, height }) => {
+  setImages((prev) =>
+    prev.map((img) => (img.id === id ? { ...img, width, height } : img)),
+  );
+});
     socket.on("add_text", (textObject) => {
       setTexts((prev) => [...prev, textObject]);
     });
@@ -160,6 +162,7 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
       socket.off("add_text");
       socket.off("add_image_object");
       socket.off("delete_image_object");
+      socket.off("resize_image_object");
     };
   }, [socket]);
 
@@ -204,46 +207,47 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     }
   };
 
-  const correctShapeWithAI = async (points) => {
-    try {
-      console.log(import.meta.env.VITE_GEMINI_URL);
-      console.log(import.meta.env.VITE_GEMINI_KEY);
+  const detectShape = (points) => {
+  if (points.length < 5) return "unknown";
 
-      console.log("correctShapeWithAI triggered");
-      console.log("AI called");
-      const response = await fetch(
-        `${import.meta.env.VITE_GEMINI_URL}?key=${import.meta.env.VITE_GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `The following are x,y coordinates of a hand drawn shape:
-                  ${JSON.stringify(points)}
-                  
-                  Identify if it is a circle, rectangle, straight line or arrow.
-                  Return ONLY one word: circle, rectangle, line, arrow or unknown.`,
-                  },
-                ],
-              },
-            ],
-          }),
-        },
-      );
+  // Bounding box
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX - minX, h = maxY - minY;
+  const cx = minX + w / 2, cy = minY + h / 2;
 
-      const data = await response.json();
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  // 1. LINE — very thin bounding box
+  const aspectRatio = Math.max(w, h) / (Math.min(w, h) || 1);
+  if (aspectRatio > 5) return "line";
 
-      redrawPerfectShape(result, points);
-    } catch (err) {
-      console.error("AI error:", err);
-    }
-  };
+  // 2. CIRCLE — points equidistant from center
+  const avgRadius = points.reduce((sum, p) => {
+    return sum + Math.hypot(p.x - cx, p.y - cy);
+  }, 0) / points.length;
+
+  const radiusVariance = points.reduce((sum, p) => {
+    const r = Math.hypot(p.x - cx, p.y - cy);
+    return sum + Math.abs(r - avgRadius);
+  }, 0) / points.length;
+
+  if (radiusVariance / avgRadius < 0.25) return "circle";
+
+  // 3. RECTANGLE — points cluster near 4 edges
+  const threshold = 0.15;
+  const nearEdge = points.filter(p => {
+    const nearLeft   = (p.x - minX) / w < threshold;
+    const nearRight  = (maxX - p.x) / w < threshold;
+    const nearTop    = (p.y - minY) / h < threshold;
+    const nearBottom = (maxY - p.y) / h < threshold;
+    return nearLeft || nearRight || nearTop || nearBottom;
+  });
+
+  if (nearEdge.length / points.length > 0.75) return "rectangle";
+
+  return "unknown";
+};
 
   const handleMouseDown = (e) => {
     if (!canDraw) return;
@@ -298,17 +302,24 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
     const y = e.clientY - rect.top;
 
     if (isResizing && activeImageId) {
+      const newWidth = Math.max(50, x - images.find(img => img.id === activeImageId)?.x || 0);
+      const newHeight = Math.max(50, y - images.find(img => img.id === activeImageId)?.y || 0);
+
       setImages((prev) =>
         prev.map((img) =>
           img.id === activeImageId
-            ? {
-                ...img,
-                width: Math.max(50, x - img.x),
-                height: Math.max(50, y - img.y),
-              }
+            ? { ...img, width: newWidth, height: newHeight }
             : img,
         ),
       );
+
+      // ✅ Emit to other participants
+      socket.emit("resize_image_object", {
+        roomCode,
+        id: activeImageId,
+        width: newWidth,
+        height: newHeight,
+      });
       return;
     }
 
@@ -430,14 +441,6 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw images
-    images.forEach((img) => {
-      const image = new Image();
-      image.src = img.src;
-
-      ctx.drawImage(image, img.x, img.y, img.width, img.height);
-    });
-
     // Draw strokes
     permanentStrokes.current.forEach((stroke) => {
       drawLine(
@@ -456,49 +459,49 @@ const Whiteboard = ({ socket, roomCode, isHost, allowedUsers, userId }) => {
       ctx.font = "20px Arial";
       ctx.fillText(t.text, t.x, t.y);
     });
+
+    // Draw images
+    images.forEach((img) => {
+      const image = new Image();
+      image.src = img.src;
+
+      ctx.drawImage(image, img.x, img.y, img.width, img.height);
+    });
   };
 
   useEffect(() => {
     redrawCanvas();
   }, [images, texts]);
 
-  const handleMouseUp = async () => {
-    setIsDraggingImage(false);
-    setActiveImageId(null);
-    setIsDrawing(false);
-    setIsResizing(false);
+  const handleMouseUp = () => {
+  setIsDraggingImage(false);
+  setActiveImageId(null);
+  setIsDrawing(false);
+  setIsResizing(false);
 
-    console.log("smartMode:", smartMode);
-    console.log("points:", strokePoints.current.length);
-    console.log("aiUsed:", aiUsed);
-
-    if (!smartMode || isProcessingAI) {
-      strokePoints.current = [];
-      return;
-    }
-    setAiUsed(true);
-
-    setIsProcessingAI(true);
-    await correctShapeWithAI(strokePoints.current);
-    setIsProcessingAI(false);
-
+  if (!smartMode || strokePoints.current.length < 5) {
     strokePoints.current = [];
-    /*setIsDrawing(false);
+    return;
+  }
 
-    if (!smartMode || strokePoints.current.length < 10) {
-      strokePoints.current = [];
-      return;
-    }
+  // Clear freehand strokes from canvas
+  const canvas = canvasRef.current;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  permanentStrokes.current = [];
 
-    const previewCtx = previewRef.current.getContext("2d");
-    previewCtx.clearRect(0, 0, 600, 400);
+  // Clear preview layer
+  const previewCtx = previewRef.current.getContext("2d");
+  previewCtx.clearRect(0, 0, previewRef.current.width, previewRef.current.height);
 
-    const fakeResult = "rectangle"; // change to test
+  // Detect and draw clean shape
+  const shape = detectShape(strokePoints.current);
+  if (shape !== "unknown") {
+    redrawPerfectShape(shape, strokePoints.current);
+  }
 
-    // 3️⃣ Draw clean corrected shape
-    redrawPerfectShape(fakeResult, strokePoints.current);
-    strokePoints.current = [];*/
-  };
+  strokePoints.current = [];
+};
 
   return (
     <div className="whiteboard-wrapper">

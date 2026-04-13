@@ -175,10 +175,14 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("resize_image_object", ({ roomCode, id, width, height }) => {
+  socket.to(roomCode).emit("resize_image_object", { id, width, height });
+});
+
   socket.on("transfer_host", async ({ roomCode, newHostId }) => {
     const room = await Room.findOne({ code: roomCode });
 
-    if (room && room.host.toString() === user.userId) {
+    if (room && room.host.toString() === socket.userId) {
       const newHost = roomUsers[roomCode][0];
 
       room.host = newHost.userId;
